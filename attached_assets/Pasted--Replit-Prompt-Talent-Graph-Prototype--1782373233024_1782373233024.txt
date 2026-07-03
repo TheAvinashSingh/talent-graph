@@ -1,0 +1,213 @@
+  Replit Prompt — Talent Graph Prototype
+                                                                                                                           
+  Build a full-stack web application called "Talent Graph" — a technology-enabled Product & Engineering search firm
+  platform. Use Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui components, and PostgreSQL with Prisma ORM.      
+  Include authentication via NextAuth with email/password.        
+                                                                                                                           
+  The app has 3 user roles: Admin (recruiter/firm operator), Client (hiring company), and Referrer (referral network       
+  member).
+                                                                                                                           
+  ---                                                                                                                      
+   
+  ## DATABASE SCHEMA                                                                                                       
+                                                                  
+  Design these core models:
+
+  **Candidate** — the Talent Graph node:                                                                                   
+  - Identity: name, email, phone, location, linkedinUrl, avatarUrl
+  - Experience: JSON array of {company, title, startDate, endDate, promoted: boolean}                                      
+  - Skills: JSON array of {name, category (product/technical/leadership/domain), proficiency (1-5)}                        
+  - Impact: arrInfluenced (number), revenueImpact (text), productsLaunched (number), usersImpacted (number)                
+  - Leadership: teamSize (number), hiringResponsibility (boolean), budgetOwnership (text), executiveExposure (text)        
+  - Preferences: compensationExpectation (number), remotePreference (enum: remote/hybrid/onsite), relocationOpen (boolean),
+   industryInterests (text array)                                                                                          
+  - Status: enum (available, passive, placed, not_looking)        
+  - Source: enum (direct_search, referral, community, inbound)                                                             
+  - createdAt, updatedAt                                          
+                                                                                                                           
+  **Client** — hiring company:                                                                                             
+  - companyName, industry, size, website, logoUrl
+  - contactName, contactEmail, contactPhone                                                                                
+  - status: enum (active, prospect, churned)                                                                               
+   
+  **Role** — open position:                                                                                                
+  - clientId (FK), title, level (enum: IC, Manager, Director, VP, CXO)
+  - department (enum: product, engineering, design, data)                                                                  
+  - compensationMin, compensationMax (in LPA)                                                                              
+  - feePercentage (20-30%)                                                                                                 
+  - location, remotePolicy                                                                                                 
+  - hiringDNA: JSON object {mustHaveSkills[], niceToHaveSkills[], experienceYears, industryPreference, teamContext,
+  successCriteria}                                                                                                         
+  - status: enum (discovery, active, shortlisting, interviewing, offer, placed, cancelled)
+  - createdAt                                                                                                              
+                                                                  
+  **CandidateScore** — evaluation per candidate per role:                                                                  
+  - candidateId (FK), roleId (FK)                                 
+  - roleFitScore (0-100, weight 40%)                                                                                       
+  - evidenceScore (0-100, weight 25%)                                                                                      
+  - leadershipScore (0-100, weight 15%)
+  - trustScore (0-100, weight 10%)                                                                                         
+  - evaluationScore (0-100, weight 10%)                           
+  - compositeScore: auto-calculated weighted average                                                                       
+  - stage: enum (sourced, screened, evaluated, shortlisted, interviewing, offered, placed, rejected)
+  - recruiterNotes (text)                                                                                                  
+                                                                                                                           
+  **TrustEdge** — the Trust Graph edge:                                                                                    
+  - fromCandidateId, toCandidateId                                                                                         
+  - relationship: enum (referred, worked_with, managed, managed_by, would_hire_again)                                      
+  - strength (1-5)
+  - context (text — e.g., "worked together at Razorpay 2021-2023")                                                         
+                                                                                                                           
+  **Referral**:                                                                                                            
+  - referrerId (FK to User), candidateId (FK), roleId (FK)                                                                 
+  - status: enum (submitted, screening, shortlisted, interviewed, hired, rejected)                                         
+  - rewardAmount, rewardPaid (boolean)                                                                                     
+                                                                                                                           
+  **User**:                                                                                                                
+  - name, email, passwordHash, role (admin/client/referrer)                                                                
+  - scoutScore (for referrers): calculated from referrals submitted, shortlisted, interviewed, hired, and success rate
+                                                                                                                           
+  **Placement**:
+  - roleId, candidateId, clientId                                                                                          
+  - compensation, feePercentage, feeAmount                        
+  - joinDate, status (confirmed, joined, probation_passed)                                                                 
+                                                                                                                           
+  ---                                                                                                                      
+                                                                                                                           
+  ## PAGES & FEATURES                                             
+
+  ### 1. Dashboard (Admin) — `/dashboard`                                                                                  
+  - KPI cards: Active Roles, Candidates in Pipeline, Placements This Quarter, Revenue This Quarter
+  - Pipeline funnel chart: Sourced → Screened → Evaluated → Shortlisted → Interviewing → Offered → Placed                  
+  - Recent activity feed (new candidates, stage changes, referrals received)                                               
+  - Revenue tracker showing placement fees earned vs target                                                                
+                                                                                                                           
+  ### 2. Candidates — `/candidates`                               
+  - Searchable, filterable table of all candidates                                                                         
+  - Filters: skills, experience years, location, status, source, compensation range                                        
+  - Each row shows: name, current company/title, top skills (badges), composite score (if scored), status                  
+  - Click to open Candidate Profile page                                                                                   
+                                                                                                                           
+  ### 3. Candidate Profile — `/candidates/[id]`                                                                            
+  - Full profile view with all 6 layers displayed in organized cards:                                                      
+    - Identity & Contact                                                                                                   
+    - Career Timeline (visual timeline of companies/titles with tenure bars)
+    - Skills Matrix (grouped by category with proficiency bars)                                                            
+    - Impact Highlights (ARR, products, users — big number cards)                                                          
+    - Leadership Signals                                                                                                   
+    - Preferences                                                                                                          
+  - Trust Graph section: show connected candidates with relationship type (visual mini-graph using vis.js or               
+  react-force-graph)                                                                                                       
+  - Scoring history: table of all roles this candidate was scored for
+  - Action buttons: Edit, Score for Role, Generate Dossier                                                                 
+                                                                                                                           
+  ### 4. Candidate Dossier — `/candidates/[id]/dossier/[roleId]`                                                           
+  - Beautiful, printable single-page dossier containing:                                                                   
+    - Professional Summary (auto-generated from profile data)                                                              
+    - Career Timeline                                                                                                      
+    - Impact Highlights
+    - Leadership Signals                                                                                                   
+    - Trust Indicators (referral chain, who vouched)              
+    - Compensation Expectations                                                                                            
+    - Recruiter Assessment (from recruiterNotes)
+    - Composite Score breakdown (radar chart showing 5 dimensions)                                                         
+  - "Export PDF" button (use browser print)                                                                                
+  - This is what clients receive — intelligence, not resumes                                                               
+                                                                                                                           
+  ### 5. Roles — `/roles`                                                                                                  
+  - List of all open roles with client name, title, level, compensation range, fee %, status, days open, candidates in     
+  pipeline count                                                                                                           
+  - Click to open Role Detail                                                                                       
+                                                                                                                           
+  ### 6. Role Detail — `/roles/[id]`                                                                                       
+  - Role info card with Hiring DNA displayed   
+  - Pipeline kanban board: columns = Sourced, Screened, Evaluated, Shortlisted, Interviewing, Offered, Placed, Rejected    
+  - Drag-and-drop candidates between stages                                                                                
+  - Each candidate card shows: name, composite score, top 3 skills, trust score indicator                           
+  - "Score Candidate" modal: form to input the 5 score dimensions (0-100 each), composite auto-calculates                  
+  - "Publish to Referral Network" toggle                                                                                   
+  - Fee calculator: shows estimated fee based on compensation range                                                        
+                                                                                                                           
+  ### 7. Clients — `/clients`                                                                                              
+  - Client list with company name, industry, active roles count, total placements, total fees paid                         
+  - Click to manage client                                                                                                 
+                                                                                                                    
+  ### 8. Client Detail — `/clients/[id]`                                                                                   
+  - Company info                                                                                                           
+  - Active roles list                                                                                         
+  - Placement history                                                                                                      
+  - Revenue from this client                   
+                                                                                                                           
+  ### 9. Referral Network — `/referrals`                                                                            
+  - For Admin: see all referrals, referrer leaderboard (Scout Score), reward tracking                         
+  - Scout Score formula displayed: weighted sum of (referrals submitted x1, shortlisted x3, interviewed x5, hired x10) /   
+  total submitted = success rate multiplier                                                                                
+  - "Talent Scout" badge auto-assigned when scout score > threshold                                                 
+                                                                                                                           
+  ### 10. Referrer Portal — `/portal` (for referrer role)                                                                  
+  - Available roles (only those published to referral network)                                                      
+  - "Refer a Candidate" form (max 3 per role — enforce this)                                                               
+  - My Referrals: status tracker                                                                                           
+  - My Scout Score and rewards earned                                                                                      
+                                                                                                                           
+  ### 11. Client Portal — `/client-portal` (for client role)                                                               
+  - My open roles and pipeline status                                                                                      
+  - View candidate dossiers (not full profiles — only dossier view)                                           
+  - Interview scheduling status                                                                                            
+  - Placement history                                                                                               
+                                                                                                                         
+  ### 12. Trust Graph Explorer — `/trust-graph`                                                                            
+  - Interactive force-directed graph visualization                                                                         
+  - Nodes = candidates, edges = trust relationships                                                                        
+  - Color nodes by: status, source, or score                                                                             
+  - Click node to see candidate summary                                                                                  
+  - Filter by relationship type                                                                                          
+  - This is the visual representation of the Trust Graph moat                                                              
+                                                                                                                         
+  ### 13. Analytics — `/analytics`                                                                                         
+  - Placement metrics: placements by quarter, avg time to place, avg fee                                                 
+  - Source effectiveness: direct search vs referral conversion rates                                                       
+  - Revenue: monthly/quarterly revenue, projected vs actual                                                              
+  - Referral network health: active referrers, avg scout score, referral-to-hire ratio                                     
+  - Client metrics: revenue per client, roles per client                                                                 
+                                                                                                                           
+  ---                                                                                                                    
+                                                                                                                           
+  ## SEED DATA                                                                                                             
+                                                                                                                           
+  Generate realistic seed data:                                                                                            
+  - 50 candidates with realistic Indian tech profiles (mix of PMs, engineers, leaders at companies like Razorpay, Flipkart,
+   Swiggy, PhonePe, Zerodha, Freshworks, Zoho, Postman, Browserstack, Atlassian India, Google India, Microsoft India,    
+  Amazon India)                                                                                                          
+  - 8 clients (tech companies hiring)                                                                                      
+  - 12 open roles across clients                                                                                         
+  - 30 trust edges between candidates                                                                                      
+  - 15 referrals from 5 referrer users                                                                                   
+  - 5 completed placements with fee data                                                                                   
+  - Pre-scored candidates for some roles                                                                                 
+                                                                                                                           
+  ---                                                                                                                    
+                                                                                                                           
+  ## UI/UX REQUIREMENTS                                                                                                    
+                                                                                                                           
+  - Clean, professional design — think Linear meets Notion                                                                 
+  - Dark mode by default with light mode toggle                                                                          
+  - Sidebar navigation with icons                                                                                        
+  - Use shadcn/ui components throughout                                                                                  
+  - Responsive but desktop-first (this is an internal tool)                                                                
+  - Use recharts for all charts                                                                                          
+  - Use react-force-graph-2d for the Trust Graph visualization                                                             
+  - Loading skeletons on data fetch                                                                                      
+  - Toast notifications for actions                                                                                        
+                                                                                                                           
+  ---                                                                                                                    
+                                                                                                                           
+  ## IMPORTANT IMPLEMENTATION NOTES                                                                                      
+                                                                                                                           
+  - All scoring is manual input by admin — no AI auto-scoring     
+  - Composite score = (roleFit * 0.4) + (evidence * 0.25) + (leadership * 0.15) + (trust * 0.1) + (evaluation * 0.1)       
+  - Referral limit: enforce max 3 referrals per referrer per role                                                        
+  - Scout Score: (submitted*1 + shortlisted*3 + interviewed*5 + hired*10) * (hired/submitted success rate)               
+  - Fee calculation: compensation * feePercentage                                                                          
+  - The dossier page must look polished enough to send to a client — this is the core product differentiator             
+  - Trust Graph edges are bidirectional for "worked_with" but directional for "referred", "managed", "would_hire_again"

@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Talent Graph"
+version = "1.0.0"
+id = "artifacts/talent-graph"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22621
+
+[services.development]
+run = "pnpm --filter @workspace/talent-graph run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/talent-graph", "run", "build" ]
+publicDir = "artifacts/talent-graph/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22621"
+BASE_PATH = "/"

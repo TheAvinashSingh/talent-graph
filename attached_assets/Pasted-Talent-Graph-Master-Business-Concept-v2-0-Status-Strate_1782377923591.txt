@@ -1,0 +1,175 @@
+Talent Graph - Master Business Concept (v2.0)
+
+Status: Strategic Blueprint
+Version: 2.0
+
+
+Executive Summary
+Talent Graph is a specialized Product & Engineering search firm powered by a proprietary Talent Graph and Trust Graph.
+
+The company helps technology organizations hire exceptional Product Managers, Engineering Leaders, and Technology Executives through specialized search, candidate intelligence, trust-based referrals, evidence-based evaluation, and domain expertise.
+
+Unlike traditional recruitment firms, Talent Graph does not optimize for candidate volume. Instead, it optimizes for hiring confidence.
+
+The long-term vision is to evolve from a specialized search firm into a Talent Intelligence Network capable of identifying exceptional talent before the market recognizes it.
+
+One-Line Summary
+Talent Graph is a technology-enabled Product & Engineering search firm that helps organizations hire exceptional talent through a proprietary Talent Graph and Trust Graph.
+
+Strategic Evolution
+Phase 1: Technology-Enabled Search Firm focused on placements and revenue.
+
+Phase 2: Talent Network focused on building a proprietary candidate network, referrals, and trust data.
+
+Phase 3: Talent Intelligence Platform focused on monetizing intelligence through talent mapping, compensation intelligence, leadership benchmarking, and hiring analytics.
+
+The Problem
+Historically, hiring was a candidate discovery problem. Today it is a candidate evaluation problem.
+
+AI has increased resume quality, LinkedIn profile quality, and application volume while reducing signal quality. Organizations face too many candidates, lower confidence in hiring decisions, longer hiring cycles, and difficulty evaluating specialized talent.
+
+Strategic Thesis
+The future of recruiting belongs to firms that can predict hiring success better than competitors. The moat is not candidate access. The moat is candidate understanding.
+
+Target Market
+Technology-first organizations including SaaS, AI, Fintech, Enterprise Software, and Product-Led companies.
+
+Target roles include Product Managers, Engineering Managers, Staff Engineers, Directors, VPs, CTOs, and CPOs.
+
+What We Are Building
+Revenue Engine: Search Firm.
+
+Data Engine: Talent Graph storing candidate intelligence, career data, and impact data.
+
+Acquisition Engine: Referral Network responsible for candidate acquisition and discovery.
+
+Moat: Trust Graph capturing relationships, referrals, endorsements, and hiring outcomes.
+
+Business Model
+Success-based search.
+
+Example:
+Senior PM - 40 LPA compensation, 20% fee, 8 lakh revenue.
+
+Director Product - 70 LPA compensation, 25% fee, 17.5 lakh revenue.
+
+VP Product - 1.2 crore compensation, 30% fee, 36 lakh revenue.
+
+Operating Model
+Engine 1: Direct Search (70-90% of placements)
+
+Client Requirement -> Role Discovery -> Role Deconstruction -> Candidate Search -> Evaluation -> Shortlist -> Placement
+
+Engine 2: Referral Network
+
+Role Published -> Member Refers Candidate -> Candidate Joins -> Profile Completion -> Evaluation -> Placement -> Referral Reward
+
+Rules:
+Maximum 3 referrals per role.
+Reward paid only after successful joining.
+
+Talent Scout Program
+High-performing referrers become Talent Scouts.
+
+Scout Score is calculated using referrals submitted, shortlisted, interviewed, hired, and placement success rate.
+
+The objective is to prioritize trusted talent sources.
+
+Talent Graph
+The Talent Graph stores:
+
+Identity Layer: Name, contact information, location.
+
+Experience Layer: Companies, titles, promotions, tenure.
+
+Skills Layer: Product, technical, leadership, domain expertise.
+
+Impact Layer: ARR influenced, revenue impact, products launched, users impacted.
+
+Leadership Layer: Team size, hiring responsibility, budget ownership, executive exposure.
+
+Preference Layer: Compensation expectations, remote preference, relocation preference, industry interests.
+
+Trust Graph
+Captures who referred whom, who worked with whom, who managed whom, and who would hire whom again.
+
+Over time, Talent Graph accumulates referral quality signals, trust relationships, hiring outcome data, and reputation indicators that become increasingly difficult to replicate.
+
+Evaluation Framework
+Product Managers:
+Product thinking, business impact, execution, leadership, technical understanding.
+
+Engineers:
+System complexity, architecture, scale, technical leadership.
+
+Leaders:
+Strategy, organization building, hiring capability, influence, and change management.
+
+The objective is evidence collection, not testing.
+
+Candidate Scoring Model
+Role Fit Score: 40%
+Evidence Score: 25%
+Leadership Score: 15%
+Trust Score: 10%
+Evaluation Score: 10%
+
+Scores are internal and are used to prioritize candidates, not replace recruiter judgement.
+
+Candidate Dossier
+Each shortlisted candidate receives:
+
+Professional Summary
+Career Timeline
+Impact Highlights
+Leadership Signals
+Trust Indicators
+Compensation Expectations
+Recruiter Assessment
+
+Clients receive intelligence rather than resumes.
+
+Long-Term Moat
+Talent Graph + Trust Graph + Referral Network + Hiring Outcome Data + Candidate Intelligence.
+
+Most recruiters build databases. Talent Graph builds intelligence.
+
+Success Metrics
+Year 1: 5-10 clients, 500-2,000 candidates, 10-20 placements.
+
+Year 2: 20-50 clients, 10,000 candidates, 75-100 placements.
+
+Year 3: 100+ clients, 25,000+ candidates, 200+ placements.
+
+UKG Example Journey
+Scenario: UKG wants to hire a Software Engineer with 5+ years of Java experience.
+
+Step 1: Discovery Session
+Talent Graph conducts a discovery call to understand the team, technology stack, scale, reporting structure, and success criteria.
+
+Step 2: Hiring DNA Creation
+The role is decomposed into a structured profile including Java, Spring Boot, Microservices, Enterprise SaaS experience, and ownership expectations.
+
+Step 3: Multi-Channel Search
+Candidates are sourced from the Talent Graph, Trust Graph, referrals, communities, and direct outreach.
+
+Step 4: Evaluation
+Candidates are scored on fit, technical evidence, scale handled, stability, and communication.
+
+Step 5: Validation Calls
+Recruiters speak with the most promising candidates to validate interest, compensation, and availability.
+
+Step 6: Candidate Dossiers
+The top 3-5 candidates are prepared with detailed dossiers rather than resumes.
+
+Step 7: Client Interviews
+UKG interviews the shortlisted candidates.
+
+Step 8: Offer & Placement
+One candidate is hired and Talent Graph receives a placement fee.
+
+Step 9: Referral Reward
+If the candidate originated from a referral, the referring member receives the reward.
+
+Step 10: Learning Loop
+The successful placement strengthens the Talent Graph and Trust Graph, improving future matching quality.

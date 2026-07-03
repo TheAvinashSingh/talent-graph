@@ -1,0 +1,696 @@
+# Talent Graph — Data Model & API Design Reference
+
+**Version:** 1.0
+**Date:** June 25, 2026
+
+---
+
+## Entity Relationship Diagram (Text)
+
+```
+┌──────────┐       ┌──────────┐       ┌───────────────┐
+│  Client   │──1:N──│   Role   │──1:N──│ CandidateScore│
+└──────────┘       └──────────┘       └───────────────┘
+     │                   │                    │
+     │                   │                    │
+     │              1:N  │               N:1  │
+     │                   ▼                    ▼
+     │             ┌──────────┐         ┌───────────┐
+     └──1:N───────▶│Placement │◀──N:1───│ Candidate │
+                   └──────────┘         └───────────┘
+                                             │
+                                        1:N  │  1:N
+                                    ┌────────┼────────┐
+                                    ▼        ▼        ▼
+                              ┌──────┐ ┌───────┐ ┌─────────┐
+                              │Skill │ │Exper. │ │TrustEdge│
+                              └──────┘ └───────┘ └─────────┘
+
+┌──────┐       ┌──────────┐
+│ User │──1:N──│ Referral │──N:1──▶ Candidate
+│      │       │          │──N:1──▶ Role
+└──────┘       └──────────┘
+
+┌─────────────┐
+│ ActivityLog │  (standalone — logs all events)
+└─────────────┘
+```
+
+---
+
+## Entity Details
+
+### Candidate — The Talent Graph Node
+
+The candidate is the central entity. It stores **6 intelligence layers** that go far beyond a traditional resume database.
+
+| Layer | Fields | Why it matters |
+|---|---|---|
+| **Identity** | name, email, phone, location, linkedinUrl, avatarUrl | Basic contact + reachability |
+| **Experience** | `Experience[]` — company, title, dates, promoted flag | Career trajectory + velocity calculation |
+| **Skills** | `Skill[]` — name, category, proficiency (1-5) | Matchable against Hiring DNA |
+| **Impact** | arrInfluenced, revenueImpact, productsLaunched, usersImpacted | Evidence of outcomes, not just activity |
+| **Leadership** | teamSize, hiringResponsibility, budgetOwnership, executiveExposure | Distinguishes managers from ICs |
+| **Preferences** | compensationExpected, remotePreference, relocationOpen, noticePeriod | Eliminates mismatched candidates early |
+
+**Computed fields (recalculated on save):**
+- `careerVelocity` — promotion rate, tenure consistency, scope growth
+- `profileCompleteness` — weighted % of filled fields (0-100)
+
+---
+
+### Role — With Hiring DNA
+
+The role is not a job description. It's a **structured decomposition** of what the client actually needs.
+
+| Field Group | Fields | Purpose |
+|---|---|---|
+| **Basics** | title, level, department, client, compensation range | Standard role info |
+| **Must-Haves** | mustHaveSkills[], experienceMin/Max, impactThreshold | Hard filter criteria — candidate MUST match |
+| **Nice-to-Haves** | niceToHaveSkills[], industryPreference[] | Soft scoring criteria — bonus points |
+| **Anti-Patterns** | antiPatterns[] | Red flags to avoid (e.g., "job-hopper <18mo") |
+| **Context** | teamContext, successCriteria, cultureFit, leadershipSignal | Qualitative fit — recruiter uses for evaluation |
+| **Operations** | status, publishedToNetwork, maxShortlist, feePercentage, slaDeadline | Pipeline and business rules |
+
+**State machine:**
+
+```
+DISCOVERY ──▶ ACTIVE ──▶ SHORTLISTING ──▶ INTERVIEWING ──▶ OFFER ──▶ PLACED
+    │                                                                    │
+    ▼                                                                    ▼
+CANCELLED                                                          (Placement
+                                                                    created)
+```
+
+---
+
+### CandidateScore — The Evaluation Record
+
+One score per candidate per role. This is where matching happens.
+
+| Dimension | Weight | What to assess |
+|---|---|---|
+| Role Fit (0-100) | 40% | Skill overlap with mustHaveSkills, experience depth, domain relevance |
+| Evidence (0-100) | 25% | Verified impact vs role's impactThreshold (ARR, users, products) |
+| Leadership (0-100) | 15% | Team management, hiring, budget — vs role's leadershipSignal |
+| Trust (0-100) | 10% | Trust Graph signals — referrals, endorsements, "would hire again" |
+| Evaluation (0-100) | 10% | Recruiter's gut after speaking to the candidate |
+
+**Pipeline stages:**
+
+```
+SOURCED ──▶ SCREENED ──▶ EVALUATED ──▶ SHORTLISTED ──▶ INTERVIEWING ──▶ OFFERED ──▶ PLACED
+   │            │             │              │                │             │
+   ▼            ▼             ▼              ▼                ▼             ▼
+REJECTED    REJECTED      REJECTED       REJECTED         REJECTED      DECLINED
+```
+
+---
+
+### TrustEdge — The Trust Graph Edge
+
+| Relationship | Direction | Weight | Signal strength |
+|---|---|---|---|
+| `REFERRED` | A→B | 3 | "I vouch for this person's work" |
+| `WORKED_WITH` | A↔B (bidirectional) | 2 | "I've seen their work firsthand" |
+| `MANAGED` | A→B | 4 | "I grew this person" |
+| `MANAGED_BY` | A→B | 4 | "This person grew me" |
+| `WOULD_HIRE_AGAIN` | A→B | 5 | **Strongest signal** — "I'd bet on them again" |
+
+**Trust propagation (Phase 2):**
+
+```
+Direct trust:   A → B = weight * strength
+Indirect trust: A → B → C = (A→B weight * B→C weight) * decay(0.3)
+
+Max depth: 2 hops
+Purpose: Discover candidates you don't know yet through trusted connections
+```
+
+---
+
+### Referral — With Anti-Abuse Rules
+
+| Rule | Enforcement | Error message |
+|---|---|---|
+| Max 3 per role per referrer | Count check before insert | "Maximum 3 referrals per role" |
+| Cannot self-refer | Email comparison | "Cannot refer yourself" |
+| Profile > 80% complete | Profile completeness check | "Complete your profile first (currently X%)" |
+| First referrer gets credit | Unique check on candidateId+roleId | "This candidate has already been referred for this role" |
+| 60-day cooling after rejection | Date check on rejectedAt | "This candidate is in a 60-day cooling period (until DATE)" |
+
+**Scout Score:** `(submitted*1 + shortlisted*3 + interviewed*5 + hired*10) * max(hired/submitted, 0.1)`
+
+**Talent Scout promotion:** scoutScore > 8.0 AND totalReferrals >= 5 AND hired >= 2
+
+---
+
+### Placement — Revenue Tracking
+
+| Field | Purpose |
+|---|---|
+| actualCompensation | What the candidate actually received (may differ from role range) |
+| feePercentage | Agreed fee % for this role |
+| feeAmount | actualCompensation * feePercentage — the revenue |
+| estimatedFee | What was projected at shortlist time (for accuracy tracking) |
+| guaranteePeriod | 90 days — free replacement if candidate leaves |
+| guaranteeExpiry | joinDate + 90 days |
+| replacementNeeded | Triggered if candidate leaves within guarantee |
+
+**States:** CONFIRMED → JOINED → PROBATION_PASSED (or REPLACEMENT_TRIGGERED)
+
+---
+
+## API Design — Full Reference
+
+### Authentication
+
+```
+POST   /api/auth/register     { name, email, password, role }
+POST   /api/auth/login         { email, password }    → JWT token
+POST   /api/auth/logout
+GET    /api/auth/me            → current user profile
+```
+
+---
+
+### Candidates API
+
+#### `GET /api/candidates`
+
+List candidates with filtering and pagination.
+
+**Query params:**
+
+| Param | Type | Example |
+|---|---|---|
+| `search` | string | "Rahul product" (searches name, skills, company) |
+| `skills` | string[] | "product-strategy,payments" |
+| `status` | enum | "AVAILABLE" |
+| `source` | enum | "REFERRAL" |
+| `compensationMin` | number | 30 (LPA) |
+| `compensationMax` | number | 80 (LPA) |
+| `experienceMin` | number | 5 (years) |
+| `experienceMax` | number | 12 (years) |
+| `location` | string | "Bangalore" |
+| `sortBy` | string | "compositeScore" / "careerVelocity" / "updatedAt" |
+| `page` | number | 1 |
+| `limit` | number | 20 |
+
+**Response:**
+
+```json
+{
+  "candidates": [
+    {
+      "id": "clx...",
+      "name": "Rahul Sharma",
+      "currentRole": "Senior PM",           // derived from latest experience
+      "currentCompany": "Razorpay",          // derived from latest experience
+      "topSkills": ["Payments", "B2B SaaS", "Product Strategy"],
+      "compositeScore": 82.5,               // highest across all roles, or null
+      "careerVelocity": 73,
+      "status": "AVAILABLE",
+      "source": "DIRECT_SEARCH",
+      "profileCompleteness": 85,
+      "location": "Bangalore",
+      "compensationExpected": 55,
+      "updatedAt": "2026-06-20T..."
+    }
+  ],
+  "total": 142,
+  "page": 1,
+  "totalPages": 8
+}
+```
+
+---
+
+#### `POST /api/candidates`
+
+Create a new candidate.
+
+**Request body:**
+
+```json
+{
+  "name": "Rahul Sharma",
+  "email": "rahul@example.com",
+  "phone": "+91-9876543210",
+  "location": "Bangalore",
+  "linkedinUrl": "https://linkedin.com/in/rahulsharma",
+  "source": "DIRECT_SEARCH",
+
+  "experiences": [
+    {
+      "company": "Razorpay",
+      "title": "Senior Product Manager",
+      "startDate": "2022-03-01",
+      "endDate": null,
+      "promoted": true,
+      "description": "Owns payment gateway for enterprise segment"
+    },
+    {
+      "company": "Flipkart",
+      "title": "Product Manager",
+      "startDate": "2019-06-01",
+      "endDate": "2022-02-28",
+      "promoted": false
+    }
+  ],
+
+  "skills": [
+    { "name": "Payments", "category": "DOMAIN", "proficiency": 5 },
+    { "name": "Product Strategy", "category": "PRODUCT", "proficiency": 4 },
+    { "name": "API Design", "category": "TECHNICAL", "proficiency": 3 }
+  ],
+
+  "arrInfluenced": 150,
+  "productsLaunched": 3,
+  "usersImpacted": 50000,
+  "impactSummary": "Scaled enterprise payments from 0 to 150Cr ARR in 2 years",
+
+  "teamSize": 8,
+  "hiringResponsibility": true,
+  "budgetOwnership": "2Cr annual product budget",
+
+  "compensationCurrent": 42,
+  "compensationExpected": 55,
+  "remotePreference": "HYBRID",
+  "noticePeriod": 60,
+  "industryInterests": ["Fintech", "SaaS", "Payments"]
+}
+```
+
+**Response:** Full candidate object with computed `careerVelocity` and `profileCompleteness`.
+
+**Side effects:**
+- Calculates and stores `careerVelocity`
+- Calculates and stores `profileCompleteness`
+- Creates ActivityLog entry
+
+---
+
+#### `GET /api/candidates/[id]/dossier/[roleId]`
+
+Generate dossier data for a specific candidate-role pair.
+
+**Response:**
+
+```json
+{
+  "candidate": {
+    "name": "Rahul Sharma",
+    "professionalSummary": "Senior Product Manager with 7 years in fintech...",
+    "careerTimeline": [...],
+    "impactHighlights": {
+      "arrInfluenced": 150,
+      "productsLaunched": 3,
+      "usersImpacted": 50000,
+      "narrative": "Scaled enterprise payments from 0 to 150Cr ARR..."
+    },
+    "leadershipSignals": {
+      "teamSize": 8,
+      "hiringResponsibility": true,
+      "budgetOwnership": "2Cr annual"
+    },
+    "trustIndicators": {
+      "referredBy": [{ "name": "Priya Patel", "context": "Former manager at Flipkart" }],
+      "wouldHireAgain": [{ "name": "Amit Kumar", "context": "CTO at Razorpay" }],
+      "endorsementCount": 4,
+      "trustSignalScore": 78
+    },
+    "preferences": {
+      "compensationExpected": 55,
+      "noticePeriod": 60,
+      "remotePreference": "HYBRID"
+    }
+  },
+  "score": {
+    "roleFit": 85,
+    "evidence": 78,
+    "leadership": 70,
+    "trust": 78,
+    "evaluation": 80,
+    "composite": 80.3
+  },
+  "recruiterAssessment": "Strong candidate with deep payments domain expertise...",
+  "generatedAt": "2026-06-25T..."
+}
+```
+
+---
+
+### Roles API
+
+#### `POST /api/roles`
+
+```json
+{
+  "clientId": "clx...",
+  "title": "Senior Product Manager - Payments",
+  "level": "MANAGER",
+  "department": "PRODUCT",
+  "compensationMin": 40,
+  "compensationMax": 60,
+  "feePercentage": 0.20,
+  "location": "Bangalore",
+  "remotePolicy": "HYBRID",
+
+  "mustHaveSkills": ["Payments", "B2B SaaS", "0-to-1 experience"],
+  "niceToHaveSkills": ["Fintech regulation", "International expansion"],
+  "experienceMin": 5,
+  "experienceMax": 10,
+  "industryPreference": ["Fintech", "SaaS"],
+  "teamContext": "Joining a 12-person payments team reporting to VP Product",
+  "successCriteria": "Launch international payments in 6 months",
+  "antiPatterns": ["Avg tenure < 18 months", "Only large-corp experience"],
+  "impactThreshold": "Managed P&L > 10Cr OR user base > 1M",
+  "leadershipSignal": "Managed team of 3+, hired at least 2 PMs",
+  "cultureFit": "Ownership-driven, low-process tolerance"
+}
+```
+
+---
+
+#### `POST /api/roles/[id]/match`
+
+Run Hiring DNA against the Talent Graph. Returns candidates ranked by fit.
+
+**Logic:**
+
+```
+1. Hard filter: mustHaveSkills overlap, experience range, compensation fit, location/remote, status
+2. Soft rank: score remaining candidates on skill overlap, impact metrics, leadership match
+3. Return top 20 with match reasons
+```
+
+**Response:**
+
+```json
+{
+  "matches": [
+    {
+      "candidateId": "clx...",
+      "name": "Rahul Sharma",
+      "currentRole": "Senior PM @ Razorpay",
+      "matchReasons": [
+        "Has 3/3 must-have skills",
+        "7 years experience (range: 5-10)",
+        "ARR influenced: 150Cr (threshold: >10Cr)",
+        "Team size: 8 (signal: 3+)"
+      ],
+      "missingNiceToHaves": ["International expansion"],
+      "antiPatternFlags": [],
+      "suggestedRoleFitScore": 85,
+      "compensationFit": true,
+      "locationFit": true
+    }
+  ],
+  "totalMatches": 14,
+  "filteredOut": 36,
+  "filterReasons": {
+    "missingMustHaveSkills": 18,
+    "experienceOutOfRange": 8,
+    "compensationMismatch": 6,
+    "statusNotLooking": 4
+  }
+}
+```
+
+---
+
+### Scoring API
+
+#### `POST /api/scores`
+
+Create or update a score.
+
+```json
+{
+  "candidateId": "clx...",
+  "roleId": "clx...",
+  "roleFitScore": 85,
+  "evidenceScore": 78,
+  "leadershipScore": 70,
+  "trustScore": 78,
+  "evaluationScore": 80,
+  "stage": "EVALUATED",
+  "recruiterNotes": "Strong payments expertise. Deep experience with enterprise..."
+}
+```
+
+**Side effects:**
+- Auto-calculates `compositeScore = (85*0.4)+(78*0.25)+(70*0.15)+(78*0.1)+(80*0.1) = 80.3`
+- Creates ActivityLog entry
+- If stage changed, validates pipeline rules (e.g., max shortlist)
+
+---
+
+#### `PUT /api/scores/[id]/stage`
+
+Move candidate to a new pipeline stage.
+
+```json
+{
+  "stage": "SHORTLISTED"
+}
+```
+
+**Validation:**
+- If moving to SHORTLISTED: check `count(SHORTLISTED for this role) < role.maxShortlist`
+- If moving to REJECTED: optionally include `rejectionReason`
+- If moving to PLACED: trigger placement creation flow
+
+---
+
+### Trust Graph API
+
+#### `GET /api/trust-graph`
+
+Returns full graph data for visualization.
+
+```json
+{
+  "nodes": [
+    {
+      "id": "clx...",
+      "name": "Rahul Sharma",
+      "title": "Senior PM",
+      "company": "Razorpay",
+      "status": "AVAILABLE",
+      "edgeCount": 5,
+      "trustScore": 78
+    }
+  ],
+  "edges": [
+    {
+      "id": "clx...",
+      "source": "clx-rahul",
+      "target": "clx-priya",
+      "relationship": "WORKED_WITH",
+      "strength": 4,
+      "context": "Payments team at Razorpay 2022-2024",
+      "trustWeight": 2
+    }
+  ]
+}
+```
+
+---
+
+#### `GET /api/trust-graph/propagation/[candidateId]`
+
+2-hop trust propagation with decay.
+
+```json
+{
+  "candidateId": "clx-rahul",
+  "directTrust": [
+    {
+      "candidateId": "clx-priya",
+      "name": "Priya Patel",
+      "relationship": "WOULD_HIRE_AGAIN",
+      "trustWeight": 5,
+      "strength": 5,
+      "effectiveTrust": 25.0
+    }
+  ],
+  "indirectTrust": [
+    {
+      "candidateId": "clx-amit",
+      "name": "Amit Kumar",
+      "reachedVia": "clx-priya",
+      "pathRelationships": ["WOULD_HIRE_AGAIN", "REFERRED"],
+      "effectiveTrust": 4.5,
+      "decayFactor": 0.3
+    }
+  ]
+}
+```
+
+---
+
+### Referrals API
+
+#### `POST /api/referrals`
+
+Submit a referral. **Enforces all 5 anti-abuse rules.**
+
+```json
+{
+  "candidateId": "clx...",
+  "roleId": "clx...",
+  "note": "Worked with this person at Flipkart. Excellent PM with deep payments knowledge."
+}
+```
+
+**Error responses (400):**
+
+```json
+{ "error": "Maximum 3 referrals per role" }
+{ "error": "Cannot refer yourself" }
+{ "error": "Complete your profile first (currently 65%)" }
+{ "error": "This candidate has already been referred for this role" }
+{ "error": "This candidate is in a 60-day cooling period (until Aug 24, 2026)" }
+```
+
+---
+
+### Analytics API
+
+#### `GET /api/analytics/revenue`
+
+```json
+{
+  "monthly": [
+    { "month": "2026-01", "revenue": 25.5, "placements": 2 },
+    { "month": "2026-02", "revenue": 17.5, "placements": 1 }
+  ],
+  "quarterlyTotal": 61.0,
+  "yearlyTotal": 95.5,
+  "avgFeePerPlacement": 15.9,
+  "estimateAccuracy": 0.87
+}
+```
+
+#### `GET /api/analytics/pipeline`
+
+```json
+{
+  "funnel": [
+    { "stage": "SOURCED", "count": 142, "conversionToNext": 0.45 },
+    { "stage": "SCREENED", "count": 64, "conversionToNext": 0.62 },
+    { "stage": "EVALUATED", "count": 40, "conversionToNext": 0.50 },
+    { "stage": "SHORTLISTED", "count": 20, "conversionToNext": 0.60 },
+    { "stage": "INTERVIEWING", "count": 12, "conversionToNext": 0.58 },
+    { "stage": "OFFERED", "count": 7, "conversionToNext": 0.86 },
+    { "stage": "PLACED", "count": 6 }
+  ],
+  "avgTimePerStage": {
+    "SOURCED_TO_SCREENED": 2.3,
+    "SCREENED_TO_EVALUATED": 3.1,
+    "EVALUATED_TO_SHORTLISTED": 1.8,
+    "SHORTLISTED_TO_INTERVIEWING": 4.2,
+    "INTERVIEWING_TO_OFFERED": 6.5,
+    "OFFERED_TO_PLACED": 8.1
+  },
+  "bottleneck": "INTERVIEWING_TO_OFFERED",
+  "overallConversionRate": 0.042
+}
+```
+
+#### `GET /api/analytics/sources`
+
+```json
+{
+  "breakdown": [
+    { "source": "DIRECT_SEARCH", "candidates": 95, "placed": 4, "conversionRate": 0.042 },
+    { "source": "REFERRAL", "candidates": 32, "placed": 2, "conversionRate": 0.063 },
+    { "source": "COMMUNITY", "candidates": 10, "placed": 0, "conversionRate": 0 },
+    { "source": "INBOUND", "candidates": 5, "placed": 0, "conversionRate": 0 }
+  ],
+  "bestSource": "REFERRAL",
+  "referralPremium": 1.5
+}
+```
+
+---
+
+## Key Computed Fields — Recalculation Triggers
+
+| Field | Stored on | Recalculated when |
+|---|---|---|
+| `compositeScore` | CandidateScore | Any of the 5 dimension scores change |
+| `careerVelocity` | Candidate | Experiences added/updated/deleted |
+| `profileCompleteness` | Candidate | Any candidate field changes |
+| `scoutScore` | User (referrer) | Any referral status changes |
+| `isTalentScout` | User (referrer) | Scout score recalculated |
+| `feeAmount` | Placement | actualCompensation or feePercentage changes |
+| `guaranteeExpiry` | Placement | joinDate set/changed |
+| `trustWeight` | TrustEdge | Relationship type changes |
+
+---
+
+## File Structure (Suggested)
+
+```
+src/
+├── app/
+│   ├── (auth)/
+│   │   ├── login/page.tsx
+│   │   └── register/page.tsx
+│   ├── (dashboard)/
+│   │   ├── layout.tsx              ← sidebar + topbar
+│   │   ├── dashboard/page.tsx
+│   │   ├── candidates/
+│   │   │   ├── page.tsx            ← list
+│   │   │   └── [id]/
+│   │   │       ├── page.tsx        ← profile
+│   │   │       └── dossier/[roleId]/page.tsx
+│   │   ├── roles/
+│   │   │   ├── page.tsx
+│   │   │   └── [id]/page.tsx       ← detail + kanban
+│   │   ├── clients/
+│   │   │   ├── page.tsx
+│   │   │   └── [id]/page.tsx
+│   │   ├── trust-graph/page.tsx
+│   │   ├── referrals/page.tsx
+│   │   └── analytics/page.tsx
+│   ├── portal/                     ← referrer portal
+│   │   ├── page.tsx
+│   │   └── referrals/page.tsx
+│   ├── client-portal/              ← client portal
+│   │   ├── page.tsx
+│   │   └── dossiers/[id]/page.tsx
+│   └── api/
+│       ├── auth/[...nextauth]/route.ts
+│       ├── candidates/
+│       ├── roles/
+│       ├── scores/
+│       ├── trust-graph/
+│       ├── referrals/
+│       ├── clients/
+│       ├── placements/
+│       ├── analytics/
+│       └── activity/
+├── components/
+│   ├── ui/                         ← shadcn components
+│   ├── dashboard/
+│   ├── candidates/
+│   ├── roles/
+│   ├── trust-graph/
+│   ├── referrals/
+│   └── shared/
+├── lib/
+│   ├── prisma.ts
+│   ├── auth.ts
+│   ├── scoring.ts                  ← composite score, career velocity, trust signal
+│   ├── matching.ts                 ← hard filter + soft rank logic
+│   ├── referral-rules.ts           ← 5 anti-abuse validations
+│   ├── scout-score.ts              ← scout score + talent scout promotion
+│   └── trust-propagation.ts        ← 2-hop trust with decay
+└── prisma/
+    ├── schema.prisma
+    └── seed.ts                     ← 50 candidates, 8 clients, 12 roles, etc.
+```

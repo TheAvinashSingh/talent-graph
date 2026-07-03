@@ -1,0 +1,885 @@
+# Talent Graph — Replit Prompt (with Business Logic)
+
+Copy everything below the line into Replit.
+
+---
+
+Build a full-stack web application called **"Talent Graph"** — a technology-enabled Product & Engineering search firm platform powered by a proprietary Talent Graph and Trust Graph.
+
+**Tech stack:** Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, PostgreSQL with Prisma ORM, NextAuth (email/password auth).
+
+---
+
+## CORE CONCEPT
+
+This platform runs a specialized recruitment firm that optimizes for **hiring confidence, not candidate volume**. It has 3 user roles: **Admin** (recruiter/firm operator), **Client** (hiring company), **Referrer** (referral network member).
+
+The platform has 6 business logic engines: Role Decomposition, Candidate Intelligence (Talent Graph), Matching & Scoring, Trust Graph, Pipeline & Placement, and Referral Network. All are described below with exact rules.
+
+---
+
+## PRISMA SCHEMA
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── AUTH ────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  passwordHash  String
+  role          UserRole  @default(ADMIN)
+  avatarUrl     String?
+  scoutScore    Float     @default(0)
+  isTalentScout Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  referrals     Referral[]
+  clientAccess  ClientUser[]
+}
+
+enum UserRole {
+  ADMIN
+  CLIENT
+  REFERRER
+}
+
+// ─── CANDIDATE (THE TALENT GRAPH NODE) ──────────────
+
+model Candidate {
+  id              String          @id @default(cuid())
+
+  // Identity Layer
+  name            String
+  email           String?         @unique
+  phone           String?
+  location        String?
+  linkedinUrl     String?
+  avatarUrl       String?
+
+  // Experience Layer — structured career history
+  experiences     Experience[]
+
+  // Skills Layer
+  skills          Skill[]
+
+  // Impact Layer
+  arrInfluenced   Float?          // in Cr
+  revenueImpact   String?         // free text description
+  productsLaunched Int?
+  usersImpacted   Int?            // in thousands
+  impactSummary   String?         // recruiter-written narrative
+
+  // Leadership Layer
+  teamSize        Int?
+  hiringResponsibility Boolean    @default(false)
+  budgetOwnership String?
+  executiveExposure String?
+  peopleManaged   Int?            // total across career
+  directReportsCurrently Int?
+
+  // Preference Layer
+  compensationCurrent   Float?    // in LPA
+  compensationExpected  Float?    // in LPA
+  remotePreference      RemotePreference @default(FLEXIBLE)
+  relocationOpen        Boolean   @default(false)
+  industryInterests     String[]  // array of industries
+  noticePeriod          Int?      // in days
+
+  // Meta
+  status          CandidateStatus @default(AVAILABLE)
+  source          CandidateSource @default(DIRECT_SEARCH)
+  careerVelocity  Float?          // calculated score
+  profileCompleteness Int         @default(0) // 0-100%
+  recruiterNotes  String?
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  scores          CandidateScore[]
+  trustEdgesFrom  TrustEdge[]     @relation("TrustFrom")
+  trustEdgesTo    TrustEdge[]     @relation("TrustTo")
+  referrals       Referral[]
+  placements      Placement[]
+}
+
+enum CandidateStatus {
+  AVAILABLE
+  PASSIVE
+  PLACED
+  NOT_LOOKING
+}
+
+enum CandidateSource {
+  DIRECT_SEARCH
+  REFERRAL
+  COMMUNITY
+  INBOUND
+}
+
+enum RemotePreference {
+  REMOTE
+  HYBRID
+  ONSITE
+  FLEXIBLE
+}
+
+model Experience {
+  id          String   @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  company     String
+  title       String
+  startDate   DateTime
+  endDate     DateTime?   // null = current
+  promoted    Boolean     @default(false)
+  description String?
+  order       Int         @default(0)
+}
+
+model Skill {
+  id          String   @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  name        String
+  category    SkillCategory
+  proficiency Int      @default(3) // 1-5
+}
+
+enum SkillCategory {
+  PRODUCT
+  TECHNICAL
+  LEADERSHIP
+  DOMAIN
+}
+
+// ─── CLIENT ─────────────────────────────────────────
+
+model Client {
+  id            String      @id @default(cuid())
+  companyName   String
+  industry      String
+  size          String?     // e.g., "500-1000"
+  website       String?
+  logoUrl       String?
+  contactName   String
+  contactEmail  String
+  contactPhone  String?
+  status        ClientStatus @default(PROSPECT)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  roles         Role[]
+  placements    Placement[]
+  users         ClientUser[]
+}
+
+enum ClientStatus {
+  ACTIVE
+  PROSPECT
+  CHURNED
+}
+
+model ClientUser {
+  id       String @id @default(cuid())
+  userId   String
+  clientId String
+  user     User   @relation(fields: [userId], references: [id])
+  client   Client @relation(fields: [clientId], references: [id])
+
+  @@unique([userId, clientId])
+}
+
+// ─── ROLE (WITH HIRING DNA) ─────────────────────────
+
+model Role {
+  id                String     @id @default(cuid())
+  clientId          String
+  client            Client     @relation(fields: [clientId], references: [id])
+
+  title             String
+  level             RoleLevel
+  department        RoleDepartment
+
+  compensationMin   Float      // in LPA
+  compensationMax   Float      // in LPA
+  feePercentage     Float      // 0.15 to 0.30
+
+  location          String?
+  remotePolicy      RemotePreference @default(FLEXIBLE)
+
+  // Hiring DNA — the structured role decomposition
+  mustHaveSkills    String[]
+  niceToHaveSkills  String[]
+  experienceMin     Int        // years
+  experienceMax     Int        // years
+  industryPreference String[]
+  teamContext       String?    // describe the team they join
+  successCriteria   String?    // what does success look like in 6 months?
+  antiPatterns      String[]   // red flags to avoid
+  impactThreshold   String?    // e.g., "managed P&L > 10Cr"
+  leadershipSignal  String?    // e.g., "managed team of 3+"
+  cultureFit        String?    // e.g., "ownership-driven, low-process"
+
+  status            RoleStatus @default(DISCOVERY)
+  publishedToNetwork Boolean   @default(false)
+  maxShortlist      Int        @default(5) // max candidates to shortlist
+  slaDeadline       DateTime?  // client must respond by this date
+
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  scores            CandidateScore[]
+  referrals         Referral[]
+  placement         Placement?
+}
+
+enum RoleLevel {
+  IC
+  MANAGER
+  SENIOR_MANAGER
+  DIRECTOR
+  VP
+  CXO
+}
+
+enum RoleDepartment {
+  PRODUCT
+  ENGINEERING
+  DESIGN
+  DATA
+  GENERAL_MANAGEMENT
+}
+
+enum RoleStatus {
+  DISCOVERY
+  ACTIVE
+  SHORTLISTING
+  INTERVIEWING
+  OFFER
+  PLACED
+  CANCELLED
+}
+
+// ─── CANDIDATE SCORING ──────────────────────────────
+
+model CandidateScore {
+  id              String        @id @default(cuid())
+  candidateId     String
+  candidate       Candidate     @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  roleId          String
+  role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  // 5 scoring dimensions (each 0-100)
+  roleFitScore    Int           @default(0)   // weight: 40%
+  evidenceScore   Int           @default(0)   // weight: 25%
+  leadershipScore Int           @default(0)   // weight: 15%
+  trustScore      Int           @default(0)   // weight: 10%
+  evaluationScore Int           @default(0)   // weight: 10%
+
+  compositeScore  Float         @default(0)   // auto-calculated
+
+  stage           PipelineStage @default(SOURCED)
+  recruiterNotes  String?
+  rejectionReason String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([candidateId, roleId])
+}
+
+enum PipelineStage {
+  SOURCED
+  SCREENED
+  EVALUATED
+  SHORTLISTED
+  INTERVIEWING
+  OFFERED
+  PLACED
+  REJECTED
+  DECLINED
+}
+
+// ─── TRUST GRAPH (EDGES) ────────────────────────────
+
+model TrustEdge {
+  id              String           @id @default(cuid())
+  fromCandidateId String
+  fromCandidate   Candidate        @relation("TrustFrom", fields: [fromCandidateId], references: [id], onDelete: Cascade)
+  toCandidateId   String
+  toCandidate     Candidate        @relation("TrustTo", fields: [toCandidateId], references: [id], onDelete: Cascade)
+
+  relationship    TrustRelationship
+  strength        Int              @default(3) // 1-5
+  context         String?          // e.g., "Worked together at Razorpay 2021-2023"
+
+  // Computed trust weight based on relationship type
+  // referred=3, worked_with=2, managed=4, would_hire_again=5
+  trustWeight     Float            @default(2)
+
+  createdAt       DateTime         @default(now())
+
+  @@unique([fromCandidateId, toCandidateId, relationship])
+}
+
+enum TrustRelationship {
+  REFERRED
+  WORKED_WITH
+  MANAGED
+  MANAGED_BY
+  WOULD_HIRE_AGAIN
+}
+
+// ─── REFERRAL NETWORK ───────────────────────────────
+
+model Referral {
+  id            String         @id @default(cuid())
+  referrerId    String
+  referrer      User           @relation(fields: [referrerId], references: [id])
+  candidateId   String
+  candidate     Candidate      @relation(fields: [candidateId], references: [id])
+  roleId        String
+  role          Role           @relation(fields: [roleId], references: [id])
+
+  status        ReferralStatus @default(SUBMITTED)
+  rewardAmount  Float?
+  rewardPaid    Boolean        @default(false)
+
+  // Cooling period tracking
+  rejectedAt    DateTime?
+  coolingUntil  DateTime?      // rejectedAt + 60 days
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([referrerId, candidateId, roleId]) // one referral per candidate per role per referrer
+}
+
+enum ReferralStatus {
+  SUBMITTED
+  SCREENING
+  SHORTLISTED
+  INTERVIEWED
+  HIRED
+  REJECTED
+}
+
+// ─── PLACEMENT (REVENUE TRACKING) ───────────────────
+
+model Placement {
+  id              String          @id @default(cuid())
+  roleId          String          @unique
+  role            Role            @relation(fields: [roleId], references: [id])
+  candidateId     String
+  candidate       Candidate       @relation(fields: [candidateId], references: [id])
+  clientId        String
+  client          Client          @relation(fields: [clientId], references: [id])
+
+  actualCompensation Float        // in LPA — what the candidate actually got
+  feePercentage     Float
+  feeAmount         Float         // actualCompensation * feePercentage
+  estimatedFee      Float?        // what was estimated at shortlist time
+
+  offerDate         DateTime?
+  joinDate          DateTime?
+  status            PlacementStatus @default(CONFIRMED)
+
+  // Replacement guarantee tracking
+  guaranteePeriod   Int           @default(90) // days
+  guaranteeExpiry   DateTime?     // joinDate + 90 days
+  replacementNeeded Boolean       @default(false)
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+enum PlacementStatus {
+  CONFIRMED
+  JOINED
+  PROBATION_PASSED
+  REPLACEMENT_TRIGGERED
+}
+
+// ─── ACTIVITY LOG ───────────────────────────────────
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  entityType  String   // "candidate", "role", "referral", "placement"
+  entityId    String
+  action      String   // "created", "stage_changed", "scored", "placed"
+  details     String?  // JSON string with additional context
+  performedBy String?  // userId
+  createdAt   DateTime @default(now())
+}
+```
+
+---
+
+## BUSINESS LOGIC — IMPLEMENT THESE EXACT RULES
+
+### 1. Composite Score Calculation
+
+Whenever any of the 5 score dimensions is updated, auto-recalculate:
+
+```typescript
+compositeScore = (roleFitScore * 0.4) + (evidenceScore * 0.25)
+               + (leadershipScore * 0.15) + (trustScore * 0.1)
+               + (evaluationScore * 0.1)
+```
+
+Scores are **recruiter-input only** — no auto-scoring. The system surfaces data; the recruiter decides the score.
+
+### 2. Career Velocity Calculation
+
+On candidate profile save, calculate:
+
+```typescript
+function calculateCareerVelocity(experiences: Experience[]): number {
+  const totalYears = calculateTotalYears(experiences)
+  if (totalYears === 0) return 0
+
+  const promotionCount = experiences.filter(e => e.promoted).length
+  const promotionRate = (promotionCount / totalYears) * 0.3
+
+  // Tenure consistency: avg tenure > 2 years = good
+  const avgTenure = totalYears / experiences.length
+  const tenureScore = Math.min(avgTenure / 3, 1) * 0.1 // max at 3 years avg
+
+  // Lateral move penalty: count moves without title change
+  const lateralMoves = countLateralMoves(experiences)
+  const lateralPenalty = (lateralMoves / experiences.length) * -0.1
+
+  return Math.max(0, Math.min(1, promotionRate + tenureScore + lateralPenalty)) * 100
+}
+```
+
+### 3. Trust Edge Weights
+
+When creating a TrustEdge, auto-set `trustWeight` based on relationship:
+
+```typescript
+const TRUST_WEIGHTS = {
+  REFERRED: 3,
+  WORKED_WITH: 2,
+  MANAGED: 4,
+  MANAGED_BY: 4,
+  WOULD_HIRE_AGAIN: 5,  // strongest signal
+}
+```
+
+`worked_with` edges are **bidirectional** — when A→B is created, also create B→A. All others are directional.
+
+### 4. Candidate Trust Score (for scoring)
+
+When scoring a candidate's trust dimension for a role:
+
+```typescript
+function calculateTrustSignal(candidateId: string): number {
+  const edges = getTrustEdgesTo(candidateId)
+
+  const wouldHireAgainCount = edges.filter(e => e.relationship === 'WOULD_HIRE_AGAIN').length
+  const referralCount = edges.filter(e => e.relationship === 'REFERRED').length
+  const totalWeight = edges.reduce((sum, e) => sum + e.trustWeight * e.strength, 0)
+
+  // Normalize to 0-100. This is a SUGGESTION — recruiter can override.
+  return Math.min(100, totalWeight * 2 + wouldHireAgainCount * 15 + referralCount * 5)
+}
+```
+
+### 5. Referral Network Rules (ENFORCE STRICTLY)
+
+```typescript
+// Before creating a referral:
+async function validateReferral(referrerId, candidateId, roleId) {
+  // Rule 1: Max 3 referrals per person per role
+  const existingCount = await countReferrals({ referrerId, roleId })
+  if (existingCount >= 3) throw new Error("Maximum 3 referrals per role")
+
+  // Rule 2: Cannot refer yourself
+  const referrerUser = await getUser(referrerId)
+  const candidate = await getCandidate(candidateId)
+  if (referrerUser.email === candidate.email) throw new Error("Cannot refer yourself")
+
+  // Rule 3: Referrer profile must be > 80% complete
+  if (referrerUser.profileCompleteness < 80) throw new Error("Complete your profile first")
+
+  // Rule 4: First referrer gets credit
+  const existingReferral = await findReferral({ candidateId, roleId })
+  if (existingReferral) throw new Error("This candidate has already been referred for this role")
+
+  // Rule 5: 60-day cooling period after rejection
+  const recentRejection = await findRejectedReferral({
+    candidateId,
+    rejectedAfter: subDays(new Date(), 60)
+  })
+  if (recentRejection) throw new Error("This candidate is in a 60-day cooling period")
+}
+```
+
+### 6. Scout Score Calculation
+
+Recalculate on every referral status change:
+
+```typescript
+function calculateScoutScore(referrerId: string): number {
+  const referrals = getAllReferrals(referrerId)
+
+  const submitted = referrals.length
+  const shortlisted = referrals.filter(r => ['SHORTLISTED','INTERVIEWED','HIRED'].includes(r.status)).length
+  const interviewed = referrals.filter(r => ['INTERVIEWED','HIRED'].includes(r.status)).length
+  const hired = referrals.filter(r => r.status === 'HIRED').length
+
+  const rawScore = (submitted * 1) + (shortlisted * 3) + (interviewed * 5) + (hired * 10)
+  const successRate = submitted > 0 ? Math.max(hired / submitted, 0.1) : 0.1
+
+  return rawScore * successRate
+}
+
+// Talent Scout auto-promotion
+if (scoutScore > 8.0 && totalReferrals >= 5 && hiredCount >= 2) {
+  user.isTalentScout = true
+}
+```
+
+### 7. Pipeline Rules
+
+```typescript
+// Max 5 shortlisted candidates per role
+async function moveToShortlist(candidateScoreId: string) {
+  const score = await getCandidateScore(candidateScoreId)
+  const shortlistedCount = await countByStage(score.roleId, 'SHORTLISTED')
+  if (shortlistedCount >= score.role.maxShortlist) {
+    throw new Error(`Maximum ${score.role.maxShortlist} candidates can be shortlisted`)
+  }
+  // proceed with stage change
+}
+
+// SLA tracking: flag roles where client hasn't responded in 5 business days
+// Stale role flag: no placement after 45 days → surface warning
+```
+
+### 8. Placement & Revenue
+
+```typescript
+async function createPlacement(roleId, candidateId, actualCompensation) {
+  const role = await getRole(roleId)
+  const feeAmount = actualCompensation * role.feePercentage
+
+  // Create placement
+  const placement = await prisma.placement.create({
+    data: {
+      roleId,
+      candidateId,
+      clientId: role.clientId,
+      actualCompensation,
+      feePercentage: role.feePercentage,
+      feeAmount,
+      estimatedFee: role.compensationMax * role.feePercentage,
+      guaranteeExpiry: addDays(new Date(), 90),
+      status: 'CONFIRMED'
+    }
+  })
+
+  // Update role status
+  await prisma.role.update({ where: { id: roleId }, data: { status: 'PLACED' } })
+
+  // Update candidate status
+  await prisma.candidate.update({ where: { id: candidateId }, data: { status: 'PLACED' } })
+
+  // If candidate came from referral, mark referral as HIRED
+  // Reward paid only after candidate completes 30 days (tracked separately)
+}
+```
+
+### 9. Profile Completeness Calculation
+
+```typescript
+function calculateProfileCompleteness(candidate): number {
+  const fields = [
+    { filled: !!candidate.name, weight: 10 },
+    { filled: !!candidate.email, weight: 5 },
+    { filled: !!candidate.phone, weight: 5 },
+    { filled: !!candidate.location, weight: 5 },
+    { filled: !!candidate.linkedinUrl, weight: 5 },
+    { filled: candidate.experiences.length > 0, weight: 15 },
+    { filled: candidate.skills.length > 0, weight: 15 },
+    { filled: !!candidate.arrInfluenced || !!candidate.productsLaunched, weight: 10 },
+    { filled: !!candidate.teamSize, weight: 10 },
+    { filled: !!candidate.compensationExpected, weight: 10 },
+    { filled: !!candidate.remotePreference, weight: 5 },
+    { filled: !!candidate.recruiterNotes, weight: 5 },
+  ]
+  return fields.reduce((sum, f) => sum + (f.filled ? f.weight : 0), 0)
+}
+```
+
+---
+
+## API ROUTES
+
+### Candidates
+```
+GET    /api/candidates          — list with filters (skills, status, source, compensation range, location)
+POST   /api/candidates          — create candidate
+GET    /api/candidates/[id]     — full profile with experiences, skills, trust edges, scores
+PUT    /api/candidates/[id]     — update (recalculates career velocity + profile completeness)
+DELETE /api/candidates/[id]     — soft delete
+GET    /api/candidates/[id]/dossier/[roleId] — generate dossier data for a candidate-role pair
+GET    /api/candidates/[id]/trust-graph       — get trust edges (1 hop + 2 hop with decay)
+GET    /api/candidates/[id]/similar           — find similar candidates by skills + experience overlap
+```
+
+### Roles
+```
+GET    /api/roles               — list with filters (status, department, level, client)
+POST   /api/roles               — create role (with Hiring DNA fields)
+GET    /api/roles/[id]          — role detail with pipeline stats
+PUT    /api/roles/[id]          — update
+GET    /api/roles/[id]/pipeline — get all CandidateScores for this role, grouped by stage
+POST   /api/roles/[id]/match    — run hard filters against Talent Graph, return matching candidates
+GET    /api/roles/[id]/fee-estimate — calculate estimated fee range
+```
+
+### Scoring
+```
+POST   /api/scores              — create/update score for candidate+role (recalculates composite)
+PUT    /api/scores/[id]/stage   — move candidate to new pipeline stage (enforces max shortlist rule)
+```
+
+### Trust Graph
+```
+GET    /api/trust-graph         — full graph data (nodes + edges) for visualization
+POST   /api/trust-edges         — create edge (auto-creates reverse for worked_with)
+DELETE /api/trust-edges/[id]    — remove edge
+GET    /api/trust-graph/propagation/[candidateId] — 2-hop trust propagation with decay
+```
+
+### Referrals
+```
+GET    /api/referrals           — list all (admin) or own (referrer)
+POST   /api/referrals           — submit referral (enforces all 5 anti-abuse rules)
+PUT    /api/referrals/[id]      — update status (recalculates scout score)
+GET    /api/referrals/leaderboard — scout score leaderboard
+```
+
+### Clients
+```
+GET    /api/clients             — list with stats (active roles, placements, revenue)
+POST   /api/clients             — create
+GET    /api/clients/[id]        — detail with roles, placements, revenue history
+PUT    /api/clients/[id]        — update
+```
+
+### Placements
+```
+POST   /api/placements          — create (calculates fee, updates role + candidate status)
+PUT    /api/placements/[id]     — update status (joined, probation passed, replacement)
+```
+
+### Analytics
+```
+GET    /api/analytics/revenue      — revenue by month/quarter, actual vs projected
+GET    /api/analytics/pipeline     — funnel conversion rates per stage
+GET    /api/analytics/sources      — source effectiveness (direct vs referral conversion)
+GET    /api/analytics/referrals    — network health metrics
+GET    /api/analytics/clients      — revenue per client, roles per client
+GET    /api/analytics/time-metrics — avg time-to-shortlist, time-to-placement
+```
+
+### Activity
+```
+GET    /api/activity            — recent activity feed (last 50 events)
+```
+
+---
+
+## PAGES & UI
+
+### 1. Dashboard `/dashboard` (Admin)
+- 4 KPI cards: Active Roles, Candidates in Pipeline, Placements This Quarter, Revenue This Quarter (sum of feeAmount where joinDate is this quarter)
+- Pipeline funnel chart (recharts): Sourced → Screened → Evaluated → Shortlisted → Interviewing → Offered → Placed — show counts and conversion % between each stage
+- Revenue tracker: bar chart of monthly placement fees (actual) with a target line overlay
+- Recent activity feed: last 20 events from ActivityLog — icon + text + timestamp
+- Quick actions: "Add Candidate", "Create Role", "View Pipeline"
+
+### 2. Candidates `/candidates`
+- Searchable table with columns: Name, Current Role @ Company, Top Skills (colored badges), Composite Score (if scored), Career Velocity, Status, Source, Last Updated
+- Filter sidebar: skills (multi-select), experience range (slider), compensation range (slider), location, status, source
+- Sort by: composite score, career velocity, recently added, compensation
+- Each row clickable → opens candidate profile
+- "Add Candidate" button → modal with full form
+
+### 3. Candidate Profile `/candidates/[id]`
+Six cards for each intelligence layer:
+- **Identity & Contact**: photo, name, email, phone, location, LinkedIn link, status badge, source badge
+- **Career Timeline**: visual vertical timeline of experiences. Each entry shows company logo area, title, dates, tenure duration bar, "Promoted" badge if applicable
+- **Skills Matrix**: grouped by category (Product, Technical, Leadership, Domain). Each skill shows name + proficiency bar (1-5). Color-coded by category.
+- **Impact Highlights**: 4 big-number cards — ARR Influenced, Products Launched, Users Impacted, Teams Built. Plus the impactSummary as narrative text below.
+- **Leadership Signals**: team size, hiring responsibility, budget ownership, executive exposure, people managed
+- **Preferences**: compensation (current vs expected), remote preference, relocation, notice period, industries
+
+**Trust Network section**: Mini force-directed graph (react-force-graph-2d) showing this candidate as center node with connected candidates. Edge labels show relationship type. Clicking a connected node shows their name + title.
+
+**Scoring History**: Table of all roles this candidate was scored for — role title, client, composite score, stage, date. Each row expandable to show the 5 dimension breakdown.
+
+**Actions**: "Edit Profile", "Score for Role" (dropdown of active roles), "Generate Dossier" (dropdown of scored roles)
+
+**Profile Completeness**: circular progress indicator showing % and listing missing fields
+
+### 4. Candidate Dossier `/candidates/[id]/dossier/[roleId]`
+This is the core product — what clients receive instead of resumes. Must look polished and professional.
+
+Layout — single-page, printable:
+- Header: "Talent Graph — Candidate Dossier" with subtle branding
+- **Professional Summary**: 3-4 sentences auto-generated from profile (current role, years of experience, key domain, standout achievement)
+- **Career Timeline**: Horizontal timeline showing company → company with titles
+- **Impact Highlights**: The 4 metrics in a clean grid
+- **Leadership Signals**: Bullet list of leadership data points
+- **Trust Indicators**: Who referred/vouched for this person, "would hire again" endorsements, referral chain visualization
+- **Compensation Expectations**: Expected range, notice period, remote preference
+- **Recruiter Assessment**: The recruiterNotes from the CandidateScore, written by the admin
+- **Score Breakdown**: Radar chart (recharts RadarChart) showing the 5 dimensions with values. Composite score displayed prominently.
+
+"Export PDF" button (triggers browser print with print-optimized CSS). "Share with Client" button (generates a unique read-only link valid for 7 days).
+
+### 5. Roles `/roles`
+Table: Client Name, Role Title, Level, Department, Compensation Range, Fee %, Status, Days Open, Candidates in Pipeline (count), Published to Network (yes/no)
+- Filter by: status, department, level, client
+- "Create Role" button → full form with Hiring DNA fields
+
+### 6. Role Detail `/roles/[id]`
+**Role Info Card**: title, client, level, department, compensation range, fee %, Hiring DNA displayed in structured format (must-haves as green badges, nice-to-haves as blue badges, anti-patterns as red badges, experience range, impact threshold, success criteria)
+
+**Fee Calculator**: shows estimated fee = compensationMax * feePercentage, and compensation range
+
+**SLA Tracker**: days since last client response, warning if > 5 business days
+
+**Pipeline Kanban Board**: drag-and-drop columns = Sourced, Screened, Evaluated, Shortlisted (shows count/max), Interviewing, Offered, Placed, Rejected
+- Each candidate card shows: name, composite score (color-coded: green > 75, yellow > 50, red < 50), top 3 skills as tiny badges, trust score indicator (shield icon with strength)
+- Drag between columns to change stage. Enforce max shortlist rule on drop.
+- Click card → side panel with score details + "Edit Score" form
+
+**"Score Candidate" modal**: triggered from card or button. 5 sliders (0-100) for each dimension. Composite auto-calculates live as sliders move. Recruiter notes textarea. Trust signal suggestion shown (from calculateTrustSignal). Save recalculates and persists.
+
+**"Find Matching Candidates" button**: runs hard filters from Hiring DNA against all candidates, returns ranked list. Admin can "Add to Pipeline" from results.
+
+**"Publish to Network" toggle**: makes role visible in referrer portal.
+
+### 7. Clients `/clients`
+Table: Company Name, Industry, Size, Status, Active Roles, Total Placements, Total Fees Earned
+Click → Client Detail
+
+### 8. Client Detail `/clients/[id]`
+- Company info card
+- Active roles list with pipeline summary per role
+- Placement history: table of all placements with candidate, role, fee, date, status
+- Revenue from this client: total fees, chart over time
+- "Create Role" button (pre-fills client)
+
+### 9. Trust Graph Explorer `/trust-graph`
+Full-screen interactive force-directed graph visualization (react-force-graph-2d):
+- Nodes = candidates. Node size = number of trust edges. Node color by status (green=available, yellow=passive, gray=placed, red=not_looking)
+- Edges = trust relationships. Edge color by type (blue=referred, green=worked_with, purple=managed, gold=would_hire_again). Edge thickness = strength (1-5).
+- Click node → side panel with candidate summary (name, title, company, composite score, trust edges list)
+- Hover edge → tooltip showing relationship type + context
+- Filter controls: by relationship type, by candidate status, by minimum trust weight
+- Search box to find and focus on a specific candidate
+- "Add Trust Edge" button → modal to connect two candidates
+
+### 10. Referral Network `/referrals` (Admin view)
+- **Leaderboard**: Top referrers by scout score. Each row: rank, name, scout score, referrals submitted/shortlisted/hired, success rate, Talent Scout badge if qualified
+- **All Referrals**: table with referrer, candidate, role, status, reward amount, reward paid
+- **Network Stats**: total referrers, active referrers (last 30 days), referral-to-hire rate, avg scout score
+
+### 11. Referrer Portal `/portal` (Referrer role)
+- **Available Roles**: cards for roles where publishedToNetwork=true. Each shows: title, client industry (not name), level, compensation range, must-have skills, nice-to-haves. "Refer a Candidate" button on each.
+- **Refer a Candidate form**: candidate name, email, phone, LinkedIn, brief note on why they're a fit. Shows "X/3 referrals used for this role" counter. Validates all 5 anti-abuse rules before submission.
+- **My Referrals**: status tracker — each referral shows candidate name, role, status (with colored badge), reward (if hired)
+- **My Score**: scout score displayed prominently, breakdown of how it's calculated, progress toward Talent Scout status
+
+### 12. Client Portal `/client-portal` (Client role)
+- **My Roles**: list of roles with pipeline status summary per role
+- **Dossiers**: read-only dossier views for shortlisted candidates (clients see dossiers, NOT full profiles)
+- **Placement History**: past placements with dates and fees
+
+### 13. Analytics `/analytics`
+Four tabs:
+- **Revenue**: monthly revenue bar chart, quarterly totals, cumulative revenue line, avg fee per placement, estimated vs actual fee accuracy
+- **Pipeline**: funnel chart with conversion rates between stages, avg time per stage, bottleneck identification (longest stage)
+- **Sources**: pie chart of candidate sources, conversion rate by source (which source produces the most hires?), direct search vs referral effectiveness
+- **Network**: referral network growth over time, active referrers, scout score distribution, referral-to-hire funnel
+
+---
+
+## NAVIGATION
+
+Sidebar with icons:
+- Dashboard (home icon)
+- Candidates (people icon)
+- Roles (briefcase icon)
+- Clients (building icon)
+- Trust Graph (network icon)
+- Referrals (share icon)
+- Analytics (chart icon)
+- Settings (gear icon)
+
+Top bar: user avatar, role badge, dark/light mode toggle, notifications bell
+
+---
+
+## SEED DATA
+
+Generate realistic seed data for the Indian tech ecosystem:
+
+**50 candidates** with realistic profiles from: Razorpay, Flipkart, Swiggy, PhonePe, Zerodha, Freshworks, Zoho, Postman, BrowserStack, Atlassian India, Google India, Microsoft India, Amazon India, Paytm, CRED, Meesho, Groww, Coinbase India, Stripe India, Notion India. Mix of PMs (20), Engineers (15), Leaders (15). Realistic career timelines with 2-4 companies each. Skills tagged and rated. Impact metrics filled for at least 30 candidates. Compensation range 15-120 LPA based on level.
+
+**8 clients**: TechCorp (SaaS), FinFlow (Fintech), HealthAI (HealthTech), ShopBase (E-commerce), DataVault (Data Platform), CloudScale (Infrastructure), PayRight (Payments), EduTech Pro (EdTech)
+
+**12 open roles** across clients — mix of IC PM, Senior PM, Engineering Manager, Director Product, Staff Engineer, VP Engineering
+
+**40 trust edges** between candidates — mix of all relationship types, with context strings like "Worked together at Razorpay payments team 2021-2023"
+
+**15 referrals** from 5 referrer users — various statuses
+
+**5 completed placements** with realistic fee calculations
+
+**Pre-scored candidates**: at least 6 roles should have 5-8 candidates scored and distributed across pipeline stages
+
+---
+
+## UI/UX
+
+- Clean, professional design — think Linear meets Notion
+- Dark mode by default with light mode toggle
+- shadcn/ui components throughout
+- Responsive but desktop-first
+- recharts for all charts
+- react-force-graph-2d for Trust Graph visualization
+- Loading skeletons on data fetch
+- Toast notifications on all create/update/delete actions
+- Confirmation dialogs on destructive actions
+- Keyboard shortcuts: Cmd+K for search, Cmd+N for new candidate
+
+---
+
+## IMPORTANT
+
+- All scoring is manual recruiter input — no AI auto-scoring
+- Enforce ALL referral anti-abuse rules strictly — return clear error messages
+- The dossier page MUST look polished enough to send to a client — this is THE product differentiator
+- Trust edges: `worked_with` creates bidirectional edges automatically; all others are directional
+- Calculate and persist: compositeScore, careerVelocity, profileCompleteness, scoutScore — recalculate on relevant data changes
+- Log all significant actions to ActivityLog for the dashboard feed
+- The Trust Graph visualization is a key selling point — make it interactive and visually impressive

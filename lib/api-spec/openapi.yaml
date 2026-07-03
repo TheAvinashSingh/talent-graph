@@ -1,0 +1,1740 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Talent Graph API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: candidates
+    description: Candidate (Talent Graph node) operations
+  - name: roles
+    description: Open role operations
+  - name: clients
+    description: Hiring client operations
+  - name: scores
+    description: Candidate scoring and pipeline operations
+  - name: trust
+    description: Trust Graph operations
+  - name: referrals
+    description: Referral network operations
+  - name: placements
+    description: Placement and revenue operations
+  - name: analytics
+    description: Analytics and dashboard operations
+  - name: auth
+    description: Authentication and account operations
+  - name: portal
+    description: Referrer portal operations
+  - name: clientPortal
+    description: Client portal operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /candidates:
+    get:
+      operationId: listCandidates
+      tags: [candidates]
+      summary: List candidates with optional filters
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: source, in: query, required: false, schema: { type: string } }
+        - { name: skill, in: query, required: false, schema: { type: string } }
+        - { name: location, in: query, required: false, schema: { type: string } }
+        - { name: minComp, in: query, required: false, schema: { type: number } }
+        - { name: maxComp, in: query, required: false, schema: { type: number } }
+        - { name: sort, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: List of candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CandidateListItem" }
+    post:
+      operationId: createCandidate
+      tags: [candidates]
+      summary: Create a candidate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CandidateInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Candidate" }
+
+  /candidates/{id}:
+    get:
+      operationId: getCandidate
+      tags: [candidates]
+      summary: Get full candidate profile
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Candidate profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Candidate" }
+        "404": { description: Not found }
+    put:
+      operationId: updateCandidate
+      tags: [candidates]
+      summary: Update candidate
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CandidateUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Candidate" }
+    delete:
+      operationId: deleteCandidate
+      tags: [candidates]
+      summary: Delete candidate
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted }
+
+  /candidates/{id}/trust-graph:
+    get:
+      operationId: getCandidateTrustGraph
+      tags: [trust]
+      summary: Get trust edges around a candidate
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Trust subgraph
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrustGraph" }
+
+  /candidates/{id}/dossier/{roleId}:
+    get:
+      operationId: getCandidateDossier
+      tags: [candidates]
+      summary: Generate dossier data for a candidate-role pair
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: roleId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Dossier data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dossier" }
+        "404": { description: Not found }
+
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [roles]
+      summary: List roles with optional filters
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: department, in: query, required: false, schema: { type: string } }
+        - { name: level, in: query, required: false, schema: { type: string } }
+        - { name: clientId, in: query, required: false, schema: { type: string } }
+        - { name: published, in: query, required: false, schema: { type: boolean } }
+      responses:
+        "200":
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RoleListItem" }
+    post:
+      operationId: createRole
+      tags: [roles]
+      summary: Create a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoleInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+
+  /roles/{id}:
+    get:
+      operationId: getRole
+      tags: [roles]
+      summary: Get role detail with pipeline stats
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Role detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+        "404": { description: Not found }
+    put:
+      operationId: updateRole
+      tags: [roles]
+      summary: Update role
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoleUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+
+  /roles/{id}/pipeline:
+    get:
+      operationId: getRolePipeline
+      tags: [roles]
+      summary: Get candidate scores for a role grouped by stage
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Pipeline
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PipelineCard" }
+
+  /roles/{id}/match:
+    post:
+      operationId: matchRole
+      tags: [roles]
+      summary: Find matching candidates from the Talent Graph
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Ranked matching candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MatchResult" }
+
+  /scores:
+    post:
+      operationId: upsertScore
+      tags: [scores]
+      summary: Create or update a candidate score for a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScoreInput" }
+      responses:
+        "200":
+          description: Score
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CandidateScore" }
+
+  /scores/{id}/stage:
+    put:
+      operationId: updateScoreStage
+      tags: [scores]
+      summary: Move a candidate to a new pipeline stage
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StageUpdate" }
+      responses:
+        "200":
+          description: Updated score
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CandidateScore" }
+        "400": { description: Rule violation }
+
+  /trust-graph:
+    get:
+      operationId: getTrustGraph
+      tags: [trust]
+      summary: Full trust graph for visualization
+      parameters:
+        - { name: relationship, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: minWeight, in: query, required: false, schema: { type: number } }
+      responses:
+        "200":
+          description: Graph data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrustGraph" }
+
+  /trust-edges:
+    post:
+      operationId: createTrustEdge
+      tags: [trust]
+      summary: Create a trust edge (auto-creates reverse for worked_with)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrustEdgeInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrustEdge" }
+
+  /trust-edges/{id}:
+    delete:
+      operationId: deleteTrustEdge
+      tags: [trust]
+      summary: Delete a trust edge
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted }
+
+  /referrals:
+    get:
+      operationId: listReferrals
+      tags: [referrals]
+      summary: List referrals
+      parameters:
+        - { name: referrerId, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: List of referrals
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Referral" }
+    post:
+      operationId: createReferral
+      tags: [referrals]
+      summary: Submit a referral (enforces anti-abuse rules)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReferralInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Referral" }
+        "400": { description: Rule violation }
+
+  /referrals/{id}:
+    put:
+      operationId: updateReferral
+      tags: [referrals]
+      summary: Update referral status (recalculates scout score)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReferralUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Referral" }
+
+  /referrals/leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [referrals]
+      summary: Scout score leaderboard
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LeaderboardEntry" }
+
+  /clients:
+    get:
+      operationId: listClients
+      tags: [clients]
+      summary: List clients with stats
+      responses:
+        "200":
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClientListItem" }
+    post:
+      operationId: createClient
+      tags: [clients]
+      summary: Create a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClientInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Client" }
+
+  /clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      summary: Client detail with roles and placements
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Client detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Client" }
+        "404": { description: Not found }
+    put:
+      operationId: updateClient
+      tags: [clients]
+      summary: Update client
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClientUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Client" }
+
+  /placements:
+    get:
+      operationId: listPlacements
+      tags: [placements]
+      summary: List placements
+      responses:
+        "200":
+          description: List of placements
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Placement" }
+    post:
+      operationId: createPlacement
+      tags: [placements]
+      summary: Create a placement (calculates fee, updates statuses)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlacementInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Placement" }
+
+  /placements/{id}:
+    put:
+      operationId: updatePlacement
+      tags: [placements]
+      summary: Update placement status
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlacementUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Placement" }
+
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [analytics]
+      summary: Dashboard KPIs, funnel, revenue tracker
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+
+  /activity:
+    get:
+      operationId: listActivity
+      tags: [analytics]
+      summary: Recent activity feed
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Activity" }
+
+  /analytics/revenue:
+    get:
+      operationId: getRevenueAnalytics
+      tags: [analytics]
+      summary: Revenue analytics
+      responses:
+        "200":
+          description: Revenue analytics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RevenueAnalytics" }
+
+  /analytics/pipeline:
+    get:
+      operationId: getPipelineAnalytics
+      tags: [analytics]
+      summary: Pipeline funnel analytics
+      responses:
+        "200":
+          description: Pipeline analytics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PipelineAnalytics" }
+
+  /analytics/sources:
+    get:
+      operationId: getSourceAnalytics
+      tags: [analytics]
+      summary: Candidate source analytics
+      responses:
+        "200":
+          description: Source analytics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourceAnalytics" }
+
+  /analytics/referrals:
+    get:
+      operationId: getReferralAnalytics
+      tags: [analytics]
+      summary: Referral network analytics
+      responses:
+        "200":
+          description: Referral analytics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReferralAnalytics" }
+
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new referrer account (clients join by admin invite only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterInput" }
+      responses:
+        "201":
+          description: Created account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUser" }
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginInput" }
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUser" }
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Log out the current session
+      responses:
+        "204":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get the currently authenticated user
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUser" }
+
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Verify an email address with a token from the verification email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailInput" }
+      responses:
+        "200":
+          description: Authenticated, verified user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUser" }
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [auth]
+      summary: Resend the verification email to the current user
+      responses:
+        "200":
+          description: Verification email resent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+
+  /auth/request-password-reset:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request a password reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RequestPasswordResetInput" }
+      responses:
+        "200":
+          description: Reset email sent if the account exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password using a reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordInput" }
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+
+  /auth/invite/{token}:
+    get:
+      operationId: getInvite
+      tags: [auth]
+      summary: Preview an invite (email, name, company) before accepting
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Invite details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitePreview" }
+
+  /auth/accept-invite:
+    post:
+      operationId: acceptInvite
+      tags: [auth]
+      summary: Accept a client invite by setting a password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptInviteInput" }
+      responses:
+        "200":
+          description: Authenticated, activated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUser" }
+
+  /clients/{id}/invite:
+    post:
+      operationId: inviteClientUser
+      tags: [clients]
+      summary: Invite a user to a client (company) account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InviteClientInput" }
+      responses:
+        "201":
+          description: Invitation sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+
+  /portal/roles:
+    get:
+      operationId: listPortalRoles
+      tags: [portal]
+      summary: Roles published to the referral network (industry-anonymised)
+      responses:
+        "200":
+          description: Published roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PortalRole" }
+
+  /portal/referrals:
+    get:
+      operationId: listMyReferrals
+      tags: [portal]
+      summary: Referrals submitted by the current referrer
+      responses:
+        "200":
+          description: My referrals
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Referral" }
+    post:
+      operationId: createMyReferral
+      tags: [portal]
+      summary: Submit a referral to a published role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PortalReferralInput" }
+      responses:
+        "201":
+          description: Created referral
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Referral" }
+
+  /portal/score:
+    get:
+      operationId: getMyScoutScore
+      tags: [portal]
+      summary: Scout score and standing for the current referrer
+      responses:
+        "200":
+          description: Scout score detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScoutScoreDetail" }
+
+  /client-portal/roles:
+    get:
+      operationId: listClientRoles
+      tags: [clientPortal]
+      summary: Roles belonging to the current client
+      responses:
+        "200":
+          description: Client roles with pipeline summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Role" }
+
+  /client-portal/placements:
+    get:
+      operationId: listClientPlacements
+      tags: [clientPortal]
+      summary: Placements belonging to the current client
+      responses:
+        "200":
+          description: Client placements
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Placement" }
+
+  /client-portal/shortlist:
+    get:
+      operationId: listClientShortlist
+      tags: [clientPortal]
+      summary: Shortlisted candidates across the current client's roles
+      responses:
+        "200":
+          description: Shortlisted candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClientShortlistItem" }
+
+  /client-portal/dossier/{candidateId}/{roleId}:
+    get:
+      operationId: getClientDossier
+      tags: [clientPortal]
+      summary: Read-only dossier for a candidate shortlisted on a client role
+      parameters:
+        - { name: candidateId, in: path, required: true, schema: { type: string } }
+        - { name: roleId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Dossier data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dossier" }
+
+  /admin/people:
+    get:
+      operationId: getPlatformPeople
+      tags: [admin]
+      summary: Platform roster of referrer and client accounts (owner view)
+      responses:
+        "200":
+          description: Referrer and client accounts on the platform
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformPeople" }
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status: { type: string }
+      required: [status]
+
+    AuthUser:
+      type: object
+      required: [id, name, email, role, emailVerified]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [ADMIN, CLIENT, REFERRER] }
+        emailVerified: { type: boolean }
+        referrerCandidateId: { type: ["string", "null"] }
+        clientId: { type: ["string", "null"] }
+        clientName: { type: ["string", "null"] }
+
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+
+    VerifyEmailInput:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+
+    RequestPasswordResetInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string }
+
+    ResetPasswordInput:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string }
+        password: { type: string }
+
+    AcceptInviteInput:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string }
+        password: { type: string }
+
+    InvitePreview:
+      type: object
+      required: [email, name, companyName]
+      properties:
+        email: { type: string }
+        name: { type: string }
+        companyName: { type: string }
+
+    InviteClientInput:
+      type: object
+      required: [name, email]
+      properties:
+        name: { type: string }
+        email: { type: string }
+
+    RegisterInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string }
+        email: { type: string }
+        password: { type: string }
+        role: { type: string, enum: [REFERRER] }
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    PortalRole:
+      type: object
+      required: [id, title, level, department, industry, status, myReferralCount, referralsRemaining]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        level: { type: string }
+        department: { type: string }
+        industry: { type: string }
+        location: { type: ["string", "null"] }
+        remotePolicy: { type: string }
+        compensationMin: { type: number }
+        compensationMax: { type: number }
+        experienceMin: { type: integer }
+        experienceMax: { type: integer }
+        mustHaveSkills:
+          type: array
+          items: { type: string }
+        niceToHaveSkills:
+          type: array
+          items: { type: string }
+        myReferralCount: { type: integer }
+        referralsRemaining: { type: integer }
+
+    PortalReferralInput:
+      type: object
+      required: [roleId, candidateName]
+      properties:
+        roleId: { type: string }
+        candidateName: { type: string }
+        candidateEmail: { type: ["string", "null"] }
+        candidatePhone: { type: ["string", "null"] }
+        candidateLinkedin: { type: ["string", "null"] }
+        note: { type: ["string", "null"] }
+
+    ScoutScoreDetail:
+      type: object
+      required: [referrerId, name, scoutScore, submitted, shortlisted, interviewed, hired, successRate, isTalentScout, profileCompleteness, recentReferrals]
+      properties:
+        referrerId: { type: string }
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        scoutScore: { type: number }
+        submitted: { type: integer }
+        shortlisted: { type: integer }
+        interviewed: { type: integer }
+        hired: { type: integer }
+        successRate: { type: number }
+        isTalentScout: { type: boolean }
+        profileCompleteness: { type: integer }
+        rank: { type: ["integer", "null"] }
+        recentReferrals:
+          type: array
+          items: { $ref: "#/components/schemas/Referral" }
+
+    ClientShortlistItem:
+      type: object
+      required: [candidateId, roleId, candidateName, roleTitle, stage, compositeScore]
+      properties:
+        candidateId: { type: string }
+        roleId: { type: string }
+        candidateName: { type: string }
+        roleTitle: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        currentTitle: { type: ["string", "null"] }
+        stage: { type: string }
+        compositeScore: { type: number }
+
+    Experience:
+      type: object
+      required: [id, company, title, startDate, promoted]
+      properties:
+        id: { type: string }
+        company: { type: string }
+        title: { type: string }
+        startDate: { type: string }
+        endDate: { type: ["string", "null"] }
+        promoted: { type: boolean }
+        description: { type: ["string", "null"] }
+        order: { type: integer }
+
+    ExperienceInput:
+      type: object
+      required: [company, title, startDate]
+      properties:
+        company: { type: string }
+        title: { type: string }
+        startDate: { type: string }
+        endDate: { type: ["string", "null"] }
+        promoted: { type: boolean }
+        description: { type: ["string", "null"] }
+        order: { type: integer }
+
+    Skill:
+      type: object
+      required: [id, name, category, proficiency]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        category: { type: string, enum: [PRODUCT, TECHNICAL, LEADERSHIP, DOMAIN] }
+        proficiency: { type: integer }
+
+    SkillInput:
+      type: object
+      required: [name, category, proficiency]
+      properties:
+        name: { type: string }
+        category: { type: string, enum: [PRODUCT, TECHNICAL, LEADERSHIP, DOMAIN] }
+        proficiency: { type: integer }
+
+    CandidateListItem:
+      type: object
+      required: [id, name, status, source]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        currentTitle: { type: ["string", "null"] }
+        currentCompany: { type: ["string", "null"] }
+        topSkills:
+          type: array
+          items: { $ref: "#/components/schemas/Skill" }
+        status: { type: string, enum: [AVAILABLE, PASSIVE, PLACED, NOT_LOOKING] }
+        source: { type: string, enum: [DIRECT_SEARCH, REFERRAL, COMMUNITY, INBOUND] }
+        compositeScore: { type: ["number", "null"] }
+        careerVelocity: { type: ["number", "null"] }
+        compensationExpected: { type: ["number", "null"] }
+        updatedAt: { type: string }
+
+    Candidate:
+      type: object
+      required: [id, name, status, source, profileCompleteness, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        linkedinUrl: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        experiences:
+          type: array
+          items: { $ref: "#/components/schemas/Experience" }
+        skills:
+          type: array
+          items: { $ref: "#/components/schemas/Skill" }
+        arrInfluenced: { type: ["number", "null"] }
+        revenueImpact: { type: ["string", "null"] }
+        productsLaunched: { type: ["integer", "null"] }
+        usersImpacted: { type: ["integer", "null"] }
+        impactSummary: { type: ["string", "null"] }
+        teamSize: { type: ["integer", "null"] }
+        hiringResponsibility: { type: boolean }
+        budgetOwnership: { type: ["string", "null"] }
+        executiveExposure: { type: ["string", "null"] }
+        peopleManaged: { type: ["integer", "null"] }
+        directReportsCurrently: { type: ["integer", "null"] }
+        compensationCurrent: { type: ["number", "null"] }
+        compensationExpected: { type: ["number", "null"] }
+        remotePreference: { type: string, enum: [REMOTE, HYBRID, ONSITE, FLEXIBLE] }
+        relocationOpen: { type: boolean }
+        industryInterests:
+          type: array
+          items: { type: string }
+        noticePeriod: { type: ["integer", "null"] }
+        status: { type: string, enum: [AVAILABLE, PASSIVE, PLACED, NOT_LOOKING] }
+        source: { type: string, enum: [DIRECT_SEARCH, REFERRAL, COMMUNITY, INBOUND] }
+        careerVelocity: { type: ["number", "null"] }
+        profileCompleteness: { type: integer }
+        recruiterNotes: { type: ["string", "null"] }
+        scores:
+          type: array
+          items: { $ref: "#/components/schemas/ScoreHistory" }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    CandidateInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        linkedinUrl: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        experiences:
+          type: array
+          items: { $ref: "#/components/schemas/ExperienceInput" }
+        skills:
+          type: array
+          items: { $ref: "#/components/schemas/SkillInput" }
+        arrInfluenced: { type: ["number", "null"] }
+        revenueImpact: { type: ["string", "null"] }
+        productsLaunched: { type: ["integer", "null"] }
+        usersImpacted: { type: ["integer", "null"] }
+        impactSummary: { type: ["string", "null"] }
+        teamSize: { type: ["integer", "null"] }
+        hiringResponsibility: { type: boolean }
+        budgetOwnership: { type: ["string", "null"] }
+        executiveExposure: { type: ["string", "null"] }
+        peopleManaged: { type: ["integer", "null"] }
+        directReportsCurrently: { type: ["integer", "null"] }
+        compensationCurrent: { type: ["number", "null"] }
+        compensationExpected: { type: ["number", "null"] }
+        remotePreference: { type: string, enum: [REMOTE, HYBRID, ONSITE, FLEXIBLE] }
+        relocationOpen: { type: boolean }
+        industryInterests:
+          type: array
+          items: { type: string }
+        noticePeriod: { type: ["integer", "null"] }
+        status: { type: string, enum: [AVAILABLE, PASSIVE, PLACED, NOT_LOOKING] }
+        source: { type: string, enum: [DIRECT_SEARCH, REFERRAL, COMMUNITY, INBOUND] }
+        recruiterNotes: { type: ["string", "null"] }
+
+    CandidateUpdate:
+      allOf:
+        - $ref: "#/components/schemas/CandidateInput"
+
+    ScoreHistory:
+      type: object
+      required: [id, roleId, roleTitle, clientName, compositeScore, stage, createdAt]
+      properties:
+        id: { type: string }
+        roleId: { type: string }
+        roleTitle: { type: string }
+        clientName: { type: string }
+        roleFitScore: { type: integer }
+        evidenceScore: { type: integer }
+        leadershipScore: { type: integer }
+        trustScore: { type: integer }
+        evaluationScore: { type: integer }
+        compositeScore: { type: number }
+        stage: { type: string }
+        recruiterNotes: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    ClientListItem:
+      type: object
+      required: [id, companyName, industry, status]
+      properties:
+        id: { type: string }
+        companyName: { type: string }
+        industry: { type: string }
+        size: { type: ["string", "null"] }
+        logoUrl: { type: ["string", "null"] }
+        status: { type: string, enum: [ACTIVE, PROSPECT, CHURNED] }
+        activeRoles: { type: integer }
+        totalPlacements: { type: integer }
+        totalFees: { type: number }
+
+    Client:
+      type: object
+      required: [id, companyName, industry, contactName, contactEmail, status, createdAt]
+      properties:
+        id: { type: string }
+        companyName: { type: string }
+        industry: { type: string }
+        size: { type: ["string", "null"] }
+        website: { type: ["string", "null"] }
+        logoUrl: { type: ["string", "null"] }
+        contactName: { type: string }
+        contactEmail: { type: string }
+        contactPhone: { type: ["string", "null"] }
+        status: { type: string, enum: [ACTIVE, PROSPECT, CHURNED] }
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/RoleListItem" }
+        placements:
+          type: array
+          items: { $ref: "#/components/schemas/Placement" }
+        totalFees: { type: number }
+        createdAt: { type: string }
+
+    ClientInput:
+      type: object
+      required: [companyName, industry, contactName, contactEmail]
+      properties:
+        companyName: { type: string }
+        industry: { type: string }
+        size: { type: ["string", "null"] }
+        website: { type: ["string", "null"] }
+        logoUrl: { type: ["string", "null"] }
+        contactName: { type: string }
+        contactEmail: { type: string }
+        contactPhone: { type: ["string", "null"] }
+        status: { type: string, enum: [ACTIVE, PROSPECT, CHURNED] }
+
+    ClientUpdate:
+      allOf:
+        - $ref: "#/components/schemas/ClientInput"
+
+    RoleListItem:
+      type: object
+      required: [id, title, level, department, status, clientName]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        clientId: { type: string }
+        clientName: { type: string }
+        level: { type: string }
+        department: { type: string }
+        compensationMin: { type: number }
+        compensationMax: { type: number }
+        feePercentage: { type: number }
+        location: { type: ["string", "null"] }
+        status: { type: string }
+        daysOpen: { type: integer }
+        pipelineCount: { type: integer }
+        publishedToNetwork: { type: boolean }
+
+    Role:
+      type: object
+      required: [id, title, level, department, status, clientId, clientName, createdAt]
+      properties:
+        id: { type: string }
+        clientId: { type: string }
+        clientName: { type: string }
+        title: { type: string }
+        level: { type: string, enum: [IC, MANAGER, SENIOR_MANAGER, DIRECTOR, VP, CXO] }
+        department: { type: string, enum: [PRODUCT, ENGINEERING, DESIGN, DATA, GENERAL_MANAGEMENT] }
+        compensationMin: { type: number }
+        compensationMax: { type: number }
+        feePercentage: { type: number }
+        location: { type: ["string", "null"] }
+        remotePolicy: { type: string, enum: [REMOTE, HYBRID, ONSITE, FLEXIBLE] }
+        mustHaveSkills:
+          type: array
+          items: { type: string }
+        niceToHaveSkills:
+          type: array
+          items: { type: string }
+        experienceMin: { type: integer }
+        experienceMax: { type: integer }
+        industryPreference:
+          type: array
+          items: { type: string }
+        teamContext: { type: ["string", "null"] }
+        successCriteria: { type: ["string", "null"] }
+        antiPatterns:
+          type: array
+          items: { type: string }
+        impactThreshold: { type: ["string", "null"] }
+        leadershipSignal: { type: ["string", "null"] }
+        cultureFit: { type: ["string", "null"] }
+        status: { type: string, enum: [DISCOVERY, ACTIVE, SHORTLISTING, INTERVIEWING, OFFER, PLACED, CANCELLED] }
+        publishedToNetwork: { type: boolean }
+        maxShortlist: { type: integer }
+        daysOpen: { type: integer }
+        pipelineCount: { type: integer }
+        stageCounts:
+          type: array
+          items: { $ref: "#/components/schemas/StageCount" }
+        estimatedFee: { type: number }
+        createdAt: { type: string }
+
+    RoleInput:
+      type: object
+      required: [clientId, title, level, department, compensationMin, compensationMax, feePercentage, experienceMin, experienceMax]
+      properties:
+        clientId: { type: string }
+        title: { type: string }
+        level: { type: string, enum: [IC, MANAGER, SENIOR_MANAGER, DIRECTOR, VP, CXO] }
+        department: { type: string, enum: [PRODUCT, ENGINEERING, DESIGN, DATA, GENERAL_MANAGEMENT] }
+        compensationMin: { type: number }
+        compensationMax: { type: number }
+        feePercentage: { type: number }
+        location: { type: ["string", "null"] }
+        remotePolicy: { type: string, enum: [REMOTE, HYBRID, ONSITE, FLEXIBLE] }
+        mustHaveSkills:
+          type: array
+          items: { type: string }
+        niceToHaveSkills:
+          type: array
+          items: { type: string }
+        experienceMin: { type: integer }
+        experienceMax: { type: integer }
+        industryPreference:
+          type: array
+          items: { type: string }
+        teamContext: { type: ["string", "null"] }
+        successCriteria: { type: ["string", "null"] }
+        antiPatterns:
+          type: array
+          items: { type: string }
+        impactThreshold: { type: ["string", "null"] }
+        leadershipSignal: { type: ["string", "null"] }
+        cultureFit: { type: ["string", "null"] }
+        status: { type: string, enum: [DISCOVERY, ACTIVE, SHORTLISTING, INTERVIEWING, OFFER, PLACED, CANCELLED] }
+        publishedToNetwork: { type: boolean }
+        maxShortlist: { type: integer }
+
+    RoleUpdate:
+      allOf:
+        - $ref: "#/components/schemas/RoleInput"
+
+    StageCount:
+      type: object
+      required: [stage, count]
+      properties:
+        stage: { type: string }
+        count: { type: integer }
+
+    CandidateScore:
+      type: object
+      required: [id, candidateId, roleId, compositeScore, stage, createdAt]
+      properties:
+        id: { type: string }
+        candidateId: { type: string }
+        roleId: { type: string }
+        roleFitScore: { type: integer }
+        evidenceScore: { type: integer }
+        leadershipScore: { type: integer }
+        trustScore: { type: integer }
+        evaluationScore: { type: integer }
+        compositeScore: { type: number }
+        stage: { type: string }
+        recruiterNotes: { type: ["string", "null"] }
+        rejectionReason: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    ScoreInput:
+      type: object
+      required: [candidateId, roleId]
+      properties:
+        candidateId: { type: string }
+        roleId: { type: string }
+        roleFitScore: { type: integer }
+        evidenceScore: { type: integer }
+        leadershipScore: { type: integer }
+        trustScore: { type: integer }
+        evaluationScore: { type: integer }
+        stage: { type: string }
+        recruiterNotes: { type: ["string", "null"] }
+
+    StageUpdate:
+      type: object
+      required: [stage]
+      properties:
+        stage: { type: string }
+        rejectionReason: { type: ["string", "null"] }
+
+    PipelineCard:
+      type: object
+      required: [id, candidateId, candidateName, stage, compositeScore]
+      properties:
+        id: { type: string }
+        candidateId: { type: string }
+        candidateName: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        currentTitle: { type: ["string", "null"] }
+        compositeScore: { type: number }
+        trustScore: { type: integer }
+        topSkills:
+          type: array
+          items: { $ref: "#/components/schemas/Skill" }
+        stage: { type: string }
+
+    MatchResult:
+      type: object
+      required: [candidateId, name, matchScore]
+      properties:
+        candidateId: { type: string }
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        currentTitle: { type: ["string", "null"] }
+        currentCompany: { type: ["string", "null"] }
+        matchScore: { type: number }
+        matchedSkills:
+          type: array
+          items: { type: string }
+        alreadyInPipeline: { type: boolean }
+
+    TrustNode:
+      type: object
+      required: [id, name, status, edgeCount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        currentTitle: { type: ["string", "null"] }
+        currentCompany: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        status: { type: string }
+        compositeScore: { type: ["number", "null"] }
+        edgeCount: { type: integer }
+
+    TrustEdge:
+      type: object
+      required: [id, fromCandidateId, toCandidateId, relationship, strength, trustWeight]
+      properties:
+        id: { type: string }
+        fromCandidateId: { type: string }
+        toCandidateId: { type: string }
+        relationship: { type: string, enum: [REFERRED, WORKED_WITH, MANAGED, MANAGED_BY, WOULD_HIRE_AGAIN] }
+        strength: { type: integer }
+        context: { type: ["string", "null"] }
+        trustWeight: { type: number }
+
+    TrustEdgeInput:
+      type: object
+      required: [fromCandidateId, toCandidateId, relationship]
+      properties:
+        fromCandidateId: { type: string }
+        toCandidateId: { type: string }
+        relationship: { type: string, enum: [REFERRED, WORKED_WITH, MANAGED, MANAGED_BY, WOULD_HIRE_AGAIN] }
+        strength: { type: integer }
+        context: { type: ["string", "null"] }
+
+    TrustGraph:
+      type: object
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/TrustNode" }
+        edges:
+          type: array
+          items: { $ref: "#/components/schemas/TrustEdge" }
+
+    Referral:
+      type: object
+      required: [id, referrerId, referrerName, candidateId, candidateName, roleId, roleTitle, status, rewardPaid, createdAt]
+      properties:
+        id: { type: string }
+        referrerId: { type: string }
+        referrerName: { type: string }
+        candidateId: { type: string }
+        candidateName: { type: string }
+        roleId: { type: string }
+        roleTitle: { type: string }
+        status: { type: string, enum: [SUBMITTED, SCREENING, SHORTLISTED, INTERVIEWED, HIRED, REJECTED] }
+        rewardAmount: { type: ["number", "null"] }
+        rewardPaid: { type: boolean }
+        note: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    ReferralInput:
+      type: object
+      required: [referrerId, roleId, candidateName]
+      properties:
+        referrerId: { type: string }
+        roleId: { type: string }
+        candidateId: { type: ["string", "null"] }
+        candidateName: { type: string }
+        candidateEmail: { type: ["string", "null"] }
+        candidatePhone: { type: ["string", "null"] }
+        candidateLinkedin: { type: ["string", "null"] }
+        note: { type: ["string", "null"] }
+
+    ReferralUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [SUBMITTED, SCREENING, SHORTLISTED, INTERVIEWED, HIRED, REJECTED] }
+        rewardAmount: { type: ["number", "null"] }
+        rewardPaid: { type: boolean }
+
+    LeaderboardEntry:
+      type: object
+      required: [referrerId, name, scoutScore, submitted, shortlisted, hired, isTalentScout]
+      properties:
+        referrerId: { type: string }
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        scoutScore: { type: number }
+        submitted: { type: integer }
+        shortlisted: { type: integer }
+        interviewed: { type: integer }
+        hired: { type: integer }
+        successRate: { type: number }
+        isTalentScout: { type: boolean }
+
+    Placement:
+      type: object
+      required: [id, roleId, roleTitle, candidateId, candidateName, clientId, clientName, actualCompensation, feeAmount, status, createdAt]
+      properties:
+        id: { type: string }
+        roleId: { type: string }
+        roleTitle: { type: string }
+        candidateId: { type: string }
+        candidateName: { type: string }
+        clientId: { type: string }
+        clientName: { type: string }
+        actualCompensation: { type: number }
+        feePercentage: { type: number }
+        feeAmount: { type: number }
+        estimatedFee: { type: ["number", "null"] }
+        offerDate: { type: ["string", "null"] }
+        joinDate: { type: ["string", "null"] }
+        status: { type: string, enum: [CONFIRMED, JOINED, PROBATION_PASSED, REPLACEMENT_TRIGGERED] }
+        guaranteeExpiry: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    PlacementInput:
+      type: object
+      required: [roleId, candidateId, actualCompensation]
+      properties:
+        roleId: { type: string }
+        candidateId: { type: string }
+        actualCompensation: { type: number }
+        offerDate: { type: ["string", "null"] }
+        joinDate: { type: ["string", "null"] }
+
+    PlacementUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [CONFIRMED, JOINED, PROBATION_PASSED, REPLACEMENT_TRIGGERED] }
+        joinDate: { type: ["string", "null"] }
+
+    Dossier:
+      type: object
+      required: [candidate, role, score, professionalSummary]
+      properties:
+        candidate: { $ref: "#/components/schemas/Candidate" }
+        role: { $ref: "#/components/schemas/Role" }
+        score: { $ref: "#/components/schemas/CandidateScore" }
+        professionalSummary: { type: string }
+        trustIndicators:
+          type: array
+          items: { $ref: "#/components/schemas/TrustEdge" }
+        endorsers:
+          type: array
+          items: { $ref: "#/components/schemas/TrustNode" }
+
+    Activity:
+      type: object
+      required: [id, entityType, action, createdAt]
+      properties:
+        id: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        action: { type: string }
+        details: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    Dashboard:
+      type: object
+      required: [activeRoles, candidatesInPipeline, placementsThisQuarter, revenueThisQuarter, funnel, revenueByMonth, recentActivity]
+      properties:
+        activeRoles: { type: integer }
+        candidatesInPipeline: { type: integer }
+        placementsThisQuarter: { type: integer }
+        revenueThisQuarter: { type: number }
+        revenueTarget: { type: number }
+        funnel:
+          type: array
+          items: { $ref: "#/components/schemas/FunnelStage" }
+        revenueByMonth:
+          type: array
+          items: { $ref: "#/components/schemas/MonthlyRevenue" }
+        recentActivity:
+          type: array
+          items: { $ref: "#/components/schemas/Activity" }
+
+    FunnelStage:
+      type: object
+      required: [stage, count]
+      properties:
+        stage: { type: string }
+        count: { type: integer }
+        conversionRate: { type: ["number", "null"] }
+
+    MonthlyRevenue:
+      type: object
+      required: [month, revenue]
+      properties:
+        month: { type: string }
+        revenue: { type: number }
+        target: { type: number }
+
+    RevenueAnalytics:
+      type: object
+      required: [byMonth, totalRevenue, avgFee, estimatedVsActual]
+      properties:
+        byMonth:
+          type: array
+          items: { $ref: "#/components/schemas/MonthlyRevenue" }
+        totalRevenue: { type: number }
+        avgFee: { type: number }
+        estimatedVsActual:
+          type: array
+          items: { $ref: "#/components/schemas/EstimatedVsActual" }
+
+    EstimatedVsActual:
+      type: object
+      required: [label, estimated, actual]
+      properties:
+        label: { type: string }
+        estimated: { type: number }
+        actual: { type: number }
+
+    PipelineAnalytics:
+      type: object
+      required: [funnel]
+      properties:
+        funnel:
+          type: array
+          items: { $ref: "#/components/schemas/FunnelStage" }
+        bottleneckStage: { type: ["string", "null"] }
+
+    SourceAnalytics:
+      type: object
+      required: [bySource]
+      properties:
+        bySource:
+          type: array
+          items: { $ref: "#/components/schemas/SourceStat" }
+
+    SourceStat:
+      type: object
+      required: [source, count, hires]
+      properties:
+        source: { type: string }
+        count: { type: integer }
+        hires: { type: integer }
+        conversionRate: { type: number }
+
+    ReferralAnalytics:
+      type: object
+      required: [totalReferrers, activeReferrers, referralToHireRate, avgScoutScore, funnel]
+      properties:
+        totalReferrers: { type: integer }
+        activeReferrers: { type: integer }
+        referralToHireRate: { type: number }
+        avgScoutScore: { type: number }
+        funnel:
+          type: array
+          items: { $ref: "#/components/schemas/FunnelStage" }
+
+    PlatformReferrer:
+      type: object
+      required: [userId, name, email, joinedAt, scoutScore, submitted, hired, isTalentScout]
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        email: { type: string }
+        joinedAt: { type: string }
+        candidateId: { type: ["string", "null"] }
+        candidateName: { type: ["string", "null"] }
+        profileCompleteness: { type: ["integer", "null"] }
+        scoutScore: { type: number }
+        submitted: { type: integer }
+        hired: { type: integer }
+        isTalentScout: { type: boolean }
+
+    PlatformClientAccount:
+      type: object
+      required: [userId, name, email, joinedAt, clientId, companyName, activeRoles, totalPlacements, totalFees]
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        email: { type: string }
+        joinedAt: { type: string }
+        clientId: { type: string }
+        companyName: { type: string }
+        industry: { type: ["string", "null"] }
+        clientStatus: { type: string }
+        activeRoles: { type: integer }
+        totalPlacements: { type: integer }
+        totalFees: { type: number }
+
+    PlatformPeople:
+      type: object
+      required: [referrers, clients]
+      properties:
+        referrers:
+          type: array
+          items: { $ref: "#/components/schemas/PlatformReferrer" }
+        clients:
+          type: array
+          items: { $ref: "#/components/schemas/PlatformClientAccount" }

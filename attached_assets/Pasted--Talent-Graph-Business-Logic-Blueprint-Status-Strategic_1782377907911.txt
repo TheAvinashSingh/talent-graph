@@ -1,0 +1,396 @@
+# Talent Graph — Business Logic Blueprint
+
+**Status:** Strategic Implementation Guide
+**Version:** 1.0
+**Author:** Harshit Mittal
+**Date:** June 25, 2026
+
+---
+
+## Core Insight
+
+Talent Graph runs **two businesses in parallel**:
+
+1. **A services business** (search firm) — generates revenue from Day 1
+2. **A data business** (Talent Graph + Trust Graph) — builds the moat over time
+
+The platform is a **byproduct of doing the services business well**. Every placement feeds data into the graph. The product captures intelligence as a side effect of doing placements, not as a separate activity.
+
+---
+
+## The 6 Business Logic Engines
+
+---
+
+### Engine 1: Role Decomposition Engine
+
+When a client says "I need a Senior PM," most recruiters post a JD. Talent Graph **decomposes the role into a structured Hiring DNA**.
+
+**Logic:**
+
+```
+Client says: "Senior PM for payments"
+
+System captures:
+├── Must-Have Skills: [payments domain, B2B SaaS, 0→1 experience]
+├── Nice-to-Have: [fintech regulatory, international expansion]
+├── Experience Signal: [5-8 years, at least 1 scale-up]
+├── Impact Threshold: [managed P&L > 10Cr OR user base > 1M]
+├── Leadership Signal: [managed team of 3+, hired at least 2 PMs]
+├── Culture Fit: [ownership-driven, low-process tolerance]
+└── Anti-Patterns: [job-hopper (<18mo avg), only large-corp experience]
+```
+
+**Why this matters:**
+- The Hiring DNA becomes the **search query** against the Talent Graph
+- Every role decomposed makes future matching faster — you build a library of role archetypes
+- After 20-30 roles, you can offer "Role Templates" to clients
+
+**Implementation timeline:**
+- Phase 1: Structured form (dropdowns for skills, sliders for thresholds)
+- Phase 2: AI-assisted suggestions based on similar past roles
+- Phase 3: Auto-generate Hiring DNA from a job description
+
+---
+
+### Engine 2: Candidate Intelligence Engine (The Talent Graph)
+
+This is NOT a database. It's a **knowledge graph**. The difference matters.
+
+| Database stores | Knowledge graph stores |
+|---|---|
+| Name, company, title, skills | This person scaled a payments product from 0 to 50Cr ARR, managed 12 engineers, was promoted twice in 3 years, and 3 people they managed went on to become Directors |
+
+**Data capture logic (on every candidate interaction):**
+
+```
+├── What they TELL you (self-reported)
+├── What you VERIFY (reference checks, public data)
+├── What you INFER (career velocity, impact trajectory)
+└── What the NETWORK says (trust edges, referral quality)
+```
+
+**Career Velocity Calculation (key differentiator):**
+
+```
+velocity_score = (
+  promotion_count / years_of_experience         * 0.3
+  + scope_increase_rate                          * 0.3
+  + brand_progression_quality                    * 0.2
+  + lateral_move_penalty                         * -0.1
+  + tenure_consistency                           * 0.1
+)
+```
+
+| Component | What it measures |
+|---|---|
+| `promotion_count / years` | How fast they move up |
+| `scope_increase_rate` | Team size growth, budget growth over time |
+| `brand_progression_quality` | Startup → scale-up → enterprise trajectory |
+| `lateral_move_penalty` | Too many lateral moves = red flag |
+| `tenure_consistency` | Average tenure > 2 years = stable |
+
+**Implementation timeline:**
+- Phase 1: Structured form — recruiter fills in after every candidate call (accept the data entry cost)
+- Phase 2: Parse LinkedIn profiles and auto-populate 60% of fields. Recruiter validates and enriches.
+- Phase 3: AI extracts impact signals from conversation transcripts
+
+---
+
+### Engine 3: Matching & Scoring Engine
+
+Where Hiring DNA meets Talent Graph.
+
+**Step 1: Hard Filter (binary pass/fail)**
+
+```
+- Must-have skills present?
+- Experience years in range?
+- Compensation expectation within budget?
+- Location/remote compatible?
+- Status != not_looking?
+
+→ Candidates who fail ANY = excluded
+```
+
+**Step 2: Soft Score (0-100 per dimension)**
+
+| Dimension | Weight | What it measures |
+|---|---|---|
+| Role Fit | 40% | Skill overlap, experience depth, domain match |
+| Evidence | 25% | Verified impact metrics vs role's impact threshold |
+| Leadership | 15% | Team size, hiring experience, budget ownership |
+| Trust | 10% | Referral quality, network endorsements, "would hire again" count |
+| Evaluation | 10% | Recruiter's subjective assessment after conversation |
+
+**Composite Score Formula:**
+
+```
+composite = (roleFit * 0.4) + (evidence * 0.25) + (leadership * 0.15)
+          + (trust * 0.1) + (evaluation * 0.1)
+```
+
+**Step 3:** Rank by composite score, surface top 15-20 for recruiter review.
+
+**Critical Rule:** Scores are **recruiter-assisted, not auto-generated**. The system suggests scores based on data overlap. The recruiter confirms. This keeps quality high.
+
+**The "Would You Hire Again?" Signal:** When someone says "I would hire this person again," that's worth more than any skill assessment. Track this aggressively.
+
+---
+
+### Engine 4: Trust Graph Engine
+
+This is the moat. Here's the actual logic.
+
+**Edge Types and Weights:**
+
+| Edge Type | Direction | Weight | Meaning |
+|---|---|---|---|
+| `referred` | Directed (A→B) | 3 | "I vouch for this person" |
+| `worked_with` | Bidirectional | 2 | "I know their work" |
+| `managed` | Directed (A→B) | 4 | "I was responsible for their growth" |
+| `would_hire_again` | Directed (A→B) | 5 | "I'd bet on them again" — **STRONGEST SIGNAL** |
+
+**Trust Propagation (Phase 2+):**
+
+```
+If A referred B (trust = 3)
+And B referred C (trust = 3)
+Then A→C has indirect trust = 3 * 3 * decay_factor(0.3) = 2.7
+
+Rules:
+- Trust decays with distance
+- Maximum 2 hops
+- This is how you discover candidates through the network
+```
+
+**Referrer Reliability Score:**
+
+```
+reliability = (
+  candidates_hired / candidates_referred       * 0.5
+  + candidates_shortlisted / candidates_referred * 0.3
+  + avg_composite_score_of_referrals / 100       * 0.2
+)
+```
+
+**Example comparison:**
+
+| Referrer | Referred | Shortlisted | Hired | Reliability |
+|---|---|---|---|---|
+| Referrer A | 10 | 3 | 1 | Lower (volume, low conversion) |
+| Referrer B | 3 | 2 | 1 | Higher (quality over quantity) |
+
+Quality > volume. This is intentional.
+
+**Implementation timeline:**
+- Phase 1: Manual edge creation — recruiter logs relationships during candidate conversations
+- Phase 2: Auto-suggest edges — "You and X both worked at Razorpay 2021-2023. Did you work together?"
+- Phase 3: Trust propagation algorithm runs nightly, surfaces hidden candidates
+
+---
+
+### Engine 5: Pipeline & Placement Engine
+
+This is the revenue engine.
+
+**Role State Machine:**
+
+```
+Discovery → Active → Shortlisting → Interviewing → Offer → Placed
+   ↓                                                          ↓
+Cancelled                                              Fee Invoiced
+                                                            ↓
+                                                       Fee Collected
+```
+
+**Candidate-in-Role State Machine:**
+
+```
+Sourced → Screened → Evaluated → Shortlisted → Interviewing → Offered → Placed
+   ↓         ↓           ↓            ↓              ↓           ↓
+Rejected  Rejected   Rejected     Rejected       Rejected    Declined
+```
+
+**Business Rules:**
+
+| Rule | Value | Rationale |
+|---|---|---|
+| Max candidates shortlisted per role | 5 | Forces quality over volume |
+| Client dossier response SLA | 5 business days | Keeps pipeline moving |
+| Stale role flag threshold | 45 days with no placement | Triggers re-discovery |
+| Fee invoice trigger | Candidate join date | Not offer date — protects against no-shows |
+| Replacement guarantee | 90 days | If candidate leaves, one free replacement search |
+| Referral reward trigger | Candidate completes 30 days | Prevents gaming |
+
+**Revenue Calculation:**
+
+```
+estimated_fee = role.compensationMax * role.feePercentage
+actual_fee    = candidate.actualCompensation * role.feePercentage
+
+// Track: estimated vs actual fee delta — helps calibrate future pricing
+```
+
+---
+
+### Engine 6: Referral Network Engine
+
+**Anti-Abuse Rules:**
+
+| Rule | Purpose |
+|---|---|
+| Max 3 referrals per person per role | Prevents spray-and-pray |
+| Referrer cannot refer themselves | Obvious |
+| Referrer must have > 80% profile completion | Ensures they're invested |
+| First referrer gets credit (per candidate per role) | Prevents double-counting |
+| 60-day cooling period after rejection | Can't re-refer a rejected candidate to any role for 60 days |
+
+**Scout Score Formula:**
+
+```
+scout_score = (
+  submitted * 1 +
+  shortlisted * 3 +
+  interviewed * 5 +
+  hired * 10
+) * success_rate_multiplier
+
+where success_rate_multiplier = max(hired / submitted, 0.1)
+```
+
+**Example:**
+
+| Referrer | Submitted | Shortlisted | Interviewed | Hired | Raw Score | Multiplier | Scout Score |
+|---|---|---|---|---|---|---|---|
+| A | 10 | 3 | 2 | 1 | 39 | 0.10 | 3.9 |
+| B | 3 | 2 | 2 | 1 | 29 | 0.33 | **9.6** |
+
+Referrer B scores higher. Quality is rewarded over volume.
+
+**Talent Scout Promotion:**
+
+```
+if scout_score > 8.0 AND total_referrals >= 5 AND hired >= 2:
+    promote to Talent Scout
+    Benefits: early access to roles, higher reward %, badge
+```
+
+---
+
+## Integration Points
+
+| Integration | Phase | Purpose |
+|---|---|---|
+| LinkedIn profile parser | 1 | Auto-populate candidate identity + experience from public profile URL |
+| Email (Resend/SendGrid) | 1 | Client dossier delivery, referral notifications, SLA reminders |
+| Calendar (Cal.com embed) | 1 | Discovery call scheduling, validation call scheduling |
+| Google Sheets export | 1 | Clients who want data in spreadsheets |
+| WhatsApp Business API | 2 | Candidate outreach (India market — nobody checks email) |
+| Razorpay | 2 | Referral reward payouts |
+| AI transcript analysis | 3 | Extract impact signals from recorded candidate calls |
+| Glassdoor/AmbitionBox | 3 | Company intelligence to contextualize candidate experience |
+
+---
+
+## The Flywheel
+
+```
+More Placements
+    → More Candidate Data in Graph
+        → Better Matching for Future Roles
+            → Faster Time-to-Shortlist
+                → More Client Wins
+                    → More Placements
+
+More Referrals
+    → More Trust Edges
+        → Better Signal on Candidate Quality
+            → Higher Placement Success Rate
+                → Higher Client Retention
+                    → More Roles
+                        → More Referrals
+```
+
+---
+
+## Unit Economics to Track from Day 1
+
+| Metric | Why it matters |
+|---|---|
+| Cost per placement | Your time + tools — is each placement profitable? |
+| Revenue per placement | Fee collected — is the fee % sustainable? |
+| Time to placement | Discovery to join date — speed = competitive advantage |
+| Candidates evaluated per placement | Lower = better matching (graph is working) |
+| Referral-to-hire rate | Measures network quality |
+
+---
+
+## Implementation Plan — 4 Phases
+
+### Phase 0: Validate Without Code (Week 1-2)
+
+Do 2-3 searches manually using Google Sheets + Notion.
+
+**Validate:**
+- Can you decompose a role into Hiring DNA in < 30 minutes?
+- Can you source 15+ candidates for a role in < 1 week?
+- Do clients actually read and value the dossier format vs a resume?
+- Will people refer candidates if you ask them?
+
+**Output:** 1-2 placements (or near-placements) done entirely manually.
+
+---
+
+### Phase 1: Operational MVP (Week 3-6)
+
+Build only what you **cannot do in a spreadsheet**.
+
+**Build:**
+- Candidate database with all 6 intelligence layers
+- Role intake form with Hiring DNA structure
+- Scoring + composite calculation
+- Candidate dossier generator (the printable page)
+- Basic pipeline kanban
+- Auth (admin only)
+
+**Don't build yet:** Trust Graph visualization, referral portal, client portal, analytics.
+
+---
+
+### Phase 2: Network Effects (Month 2-3)
+
+You have 50+ candidates and 5+ active roles. Build the network.
+
+**Build:**
+- Trust Graph storage + basic visualization
+- Referrer portal (sign up, see roles, submit referrals, track status)
+- Scout Score calculation + leaderboard
+- Client portal (view dossiers, track pipeline)
+- Email notifications
+- WhatsApp integration
+
+---
+
+### Phase 3: Intelligence Layer (Month 4-6)
+
+You have 200+ candidates, 20+ completed roles, and placement outcome data.
+
+**Build:**
+- Trust propagation algorithm
+- Matching suggestions (auto-suggest top 10 from graph for new roles)
+- Career velocity scoring
+- "Similar candidates" recommendations
+- Analytics dashboard
+- LinkedIn auto-populate
+
+---
+
+### Phase 4: Platform (Month 6-12)
+
+**Build:**
+- Talent mapping reports (sell to clients as a product)
+- Compensation intelligence (aggregate anonymized data)
+- Hiring outcome tracking (feed back into scores)
+- API for ATS integrations
+- Multi-recruiter support
